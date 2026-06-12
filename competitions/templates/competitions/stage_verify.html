@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>Проверка этапа</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+              rel="stylesheet">
+    </head>
+    <body class="bg-light">
+        <div class="container py-4">
+            <div class="mb-3">
+                <a href="{% url 'chief_stage_list' %}"
+                   class="btn btn-sm btn-outline-secondary">← К списку этапов проверки</a>
+            </div>
+            <div class="card shadow-sm p-4 bg-white rounded mb-4">
+                <span class="badge bg-warning text-dark mb-2 align-self-start">Контур контроля</span>
+                <h3 class="h4">Этап: <span class="text-primary">{{ stage.name }}</span></h3>
+                <p class="text-muted mb-0">Соревнование: {{ stage.competition.title }}</p>
+            </div>
+            <div class="card shadow-sm p-3">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Участник (Номер)</th>
+                                <th>Показатель</th>
+                                <th>Текущий штраф</th>
+                                <th>Внесено судьей</th>
+                                <th>Статус</th>
+                                <th class="text-end" style="width: 35%;">Действие</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for res in results %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ res.participant.full_name }}</strong>
+                                        <span class="badge bg-secondary ms-1">№ {{ res.participant.bib_number }}</span>
+                                    </td>
+                                    <td class="fw-bold fs-5 text-dark">{{ res.value }}</td>
+                                    <td class="text-danger fw-bold">{{ res.penalty_value }}</td>
+                                    <td><small class="text-muted">{{ res.judge.username }} ({{ res.created_at|date:"H:i" }})</small></td>
+                                    <td>
+                                        {% if res.is_verified %}
+                                            <span class="badge bg-success">Подтвержден</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Ожидает проверки</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if not res.is_verified %}
+                                            <div class="d-flex justify-content-end gap-2">
+                                                <form method="post" action="{% url 'verify_results_backend' stage.id %}">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="result_id" value="{{ res.id }}">
+                                                    <input type="hidden" name="action" value="verify">
+                                                    <button type="submit" class="btn btn-sm btn-success">Утвердить</button>
+                                                </form>
+                                                <button class="btn btn-sm btn-outline-warning"
+                                                        type="button"
+                                                        data-bs-toggle="collapse"
+                                                        data-bs-target="#edit-{{ res.id }}">Изменить штраф</button>
+                                            </div>
+                                            <div class="collapse mt-2 text-start" id="edit-{{ res.id }}">
+                                                <div class="card card-body p-2 bg-light">
+                                                    <form method="post" action="{% url 'verify_results_backend' stage.id %}">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="result_id" value="{{ res.id }}">
+                                                        <input type="hidden" name="action" value="edit_penalty">
+                                                        <div class="mb-2">
+                                                            <input type="number"
+                                                                   step="0.001"
+                                                                   class="form-control form-control-sm"
+                                                                   name="new_penalty"
+                                                                   placeholder="Новое значение штрафа"
+                                                                   required>
+                                                        </div>
+                                                        <div class="mb-2">
+                                                            <input type="text"
+                                                                   class="form-control form-control-sm"
+                                                                   name="reason"
+                                                                   placeholder="Причина (для журнала аудита)"
+                                                                   required>
+                                                        </div>
+                                                        <button type="submit" class="btn btn-xs btn-warning w-100 btn-sm text-white">Сохранить правку</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted small">Корректировка закрыта</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">Результатов на данном этапе пока не зафиксировано.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    </body>
+</html>

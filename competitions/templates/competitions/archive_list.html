@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description"
+              content="Система учета результатов спортивных соревнований">
+        <meta name="keywords"
+              content="спорт, соревнования, учет, таблица, результаты">
+        <title>Архив и Отчетность</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+              rel="stylesheet">
+    </head>
+    <body class="bg-light">
+        <div class="container py-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">← В меню</a>
+                <h2 class="h3 mb-0 text-secondary">📦 Архив соревнований</h2>
+            </div>
+            <div class="alert alert-info shadow-sm mb-4">
+                В этом разделе хранятся завершенные мероприятия. Данные заморожены и доступны только для формирования отчетности (PDF/Excel).
+            </div>
+            <div class="card shadow-sm p-3 border-top border-info border-4">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Название (В архиве)</th>
+                            <th>Дата начала</th>
+                            <th class="text-end">Экспорт и Отчеты</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for comp in competitions %}
+                            <tr>
+                                <td><strong>{{ comp.title }}</strong></td>
+                                <td>{{ comp.start_date }}</td>
+                                <td class="text-end">
+                                    <a href="{% url 'archive_detail' comp.id %}"
+                                       class="btn btn-sm btn-outline-primary shadow-sm me-2">Подробнее 🔍</a>
+                                    <a href="{% url 'export_excel' comp.id %}"
+                                       class="btn btn-sm btn-success shadow-sm px-3 me-2">Выгрузить в Excel 📊</a>
+                                    <a href="{% url 'print_protocol' comp.id %}"
+                                       class="btn btn-sm btn-outline-danger shadow-sm"
+                                       target="_blank">Протокол (PDF) 📄</a>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-5">Архив пуст. Нет завершенных мероприятий.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </body>
+</html>

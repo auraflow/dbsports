@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>Настройка этапов соревнований</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+              rel="stylesheet">
+    </head>
+    <body class="bg-light">
+        <div class="container py-4">
+            <h2 class="mb-3">Управление: <span class="text-primary">{{ competition.title }}</span></h2>
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <a href="{% url 'organizer_competitions' %}"
+                       class="btn btn-sm btn-outline-secondary">← К списку соревнований</a>
+                </li>
+            </ul>
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <a class="nav-link active fw-bold"
+                       href="{% url 'manage_stages' competition.id %}">⚙️ Этапы</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'manage_teams' competition.id %}">🛡️ Команды (Отряды)</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link"
+                       href="{% url 'manage_participants' competition.id %}">🏃 Участники</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link"
+                       href="{% url 'competition_summary' competition.id %}">📊 Сводные итоги</a>
+                </li>
+            </ul>
+            <div class="row g-4">
+                <div class="col-md-5">
+                    <div class="card shadow-sm p-4 bg-white rounded">
+                        <h4 class="h5 mb-3">Добавить соревновательный этап</h4>
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label class="form-label">Название этапа (станции)</label>
+                                {{ form.name }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Тип замера (Ед. измерения)</label>
+                                {{ form.type }}
+                                <div class="form-text small text-muted">Определяет математическую логику расчета мест (время или баллы).</div>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">Создать этап</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="card shadow-sm p-3 bg-white rounded">
+                        <h4 class="h5 mb-3 text-muted">Сформированная структура этапов</h4>
+                        <div class="table-responsive">
+                            <table class="table table-striped align-middle mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 10%;">ID</th>
+                                        <th>Название этапа</th>
+                                        <th>Единица измерения</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for stage in stages %}
+                                        <tr>
+                                            <td><span class="text-muted">#{{ stage.id }}</span></td>
+                                            <td><strong>{{ stage.name }}</strong></td>
+                                            <td><span class="badge bg-primary px-3 py-1.5">{{ stage.type.measure_unit }}</span></td>
+                                            <td class="text-end">
+                                                <a href="{% url 'delete_stage' stage.id %}"
+                                                   class="btn btn-sm btn-outline-danger"
+                                                   onclick="return confirm('Удалить этап?');">✖</a>
+                                            </td>
+                                        </tr>
+                                    {% empty %}
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted py-4">Этапы для этого мероприятия еще не настроены.</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
