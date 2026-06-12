@@ -1,5 +1,6 @@
 from django import forms
 from .models import Result, Competition, Participant, Stage, Team, TeamMember
+from django.core.exceptions import ValidationError
 
 class ResultForm(forms.ModelForm):
     class Meta:
@@ -11,6 +12,20 @@ class ResultForm(forms.ModelForm):
             'penalty_value': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001', 'placeholder': '0.000'}),
             'comment': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Особые отметки судьи...'}),
         }
+
+# ЗАЩИТА: Проверка основного результата
+    def clean_value(self):
+        value = self.cleaned_data.get('value')
+        if value is not None and value < 0:
+            raise ValidationError("Результат не может быть отрицательным.")
+        return value
+
+    # ЗАЩИТА: Проверка значения штрафа
+    def clean_penalty_value(self):
+        penalty = self.cleaned_data.get('penalty_value')
+        if penalty is not None and penalty < 0:
+            raise ValidationError("Значение штрафа не может быть отрицательным.")
+        return penalty
 
 # --- НОВЫЕ ФОРМЫ ДЛЯ ОРГАНИЗАТОРА ---
 
@@ -35,6 +50,18 @@ class CompetitionForm(forms.ModelForm):
             'has_team': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
+    # ЗАЩИТА: Комплексная проверка логики соревнования
+    def clean(self):
+        cleaned_data = super().clean()
+        has_individual = cleaned_data.get('has_individual')
+        has_team = cleaned_data.get('has_team')
+
+        # Соревнование должно иметь хотя бы один тип зачета
+        if not has_individual and not has_team:
+            raise ValidationError("Критическая ошибка: Необходимо выбрать хотя бы один формат проведения (Личный или Командный зачет).")
+        
+        return cleaned_data
+
 class ParticipantForm(forms.ModelForm):
     class Meta:
         model = Participant
@@ -43,6 +70,14 @@ class ParticipantForm(forms.ModelForm):
             'full_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ФИО спортсмена'}),
             'bib_number': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Стартовый номер'}),
         }
+
+    # ЗАЩИТА: Очистка стартового номера от случайных пробелов
+    def clean_bib_number(self):
+        bib_number = self.cleaned_data.get('bib_number')
+        if bib_number:
+            # Убираем пробелы, чтобы система не считала " 12" и "12" разными номерами
+            return bib_number.strip()
+        return bib_number
 
 class StageForm(forms.ModelForm):
     class Meta:

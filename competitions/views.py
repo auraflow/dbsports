@@ -2,16 +2,42 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from .models import Stage, Result
 from .forms import ResultForm
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed
 from django.db.models import Sum
-from .models import Competition, ResultLog, AuditLog, Participant
+from .models import Competition, ResultLog, AuditLog, Participant, Role
 from .models import Team, TeamMember
 from django.contrib.auth import logout
 from .forms import CompetitionForm, ParticipantForm, StageForm, TeamForm, TeamMemberForm
+from django.views.decorators.http import require_POST
+from functools import wraps
+from .services import calculate_stage_standings
 import csv
 
-# Подключаем наш модуль с математическими расчетами
-from .services import calculate_stage_standings
+
+# Универсальный декоратор для проверки ролей
+def role_required(allowed_roles):
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped_view(request, *args, **kwargs):
+            # Суперюзер имеет доступ ко всему
+            if request.user.is_superuser:
+                return view_func(request, *args, **kwargs)
+            
+            # ЗАЩИТА ОТ ОШИБКИ 500: проверяем, есть ли вообще роль у пользователя
+            if not request.user.role:
+                return HttpResponseForbidden("У вас нет назначенной роли в системе.")
+            
+            # Проверяем, входит ли роль пользователя в список разрешенных
+            if request.user.role.role_name not in allowed_roles:
+                return HttpResponseForbidden("У вас нет прав для доступа к этой странице.")
+            
+            return view_func(request, *args, **kwargs)
+        return _wrapped_view
+    return decorator
+
+# Готовые декораторы для конкретных ролей (используем Choices из обновленных моделей)
+organizer_required = role_required([Role.RoleNames.ORGANIZER])
+chief_judge_required = role_required([Role.RoleNames.ORGANIZER, Role.RoleNames.CHIEF_JUDGE])
 
 @login_required
 def dashboard(request):
@@ -73,16 +99,14 @@ def stage_leaderboard(request, stage_id):
 # ==========================================
 
 @login_required
+@chief_judge_required
+@require_POST
 def verify_results_backend(request, stage_id):
     """
     Бэкенд-обработчик действий Главного судьи (срабатывает при нажатии кнопок верификации)
     """
     stage = get_object_or_404(Stage, pk=stage_id)
     
-    user_role = request.user.role.role_name if request.user.role else ''
-    if user_role not in ['Главный судья', 'Организатор'] and not request.user.is_superuser:
-        return redirect('dashboard')
-
     if request.method == 'POST':
         action = request.POST.get('action')
         result_id = request.POST.get('result_id')
@@ -129,6 +153,7 @@ def verify_results_backend(request, stage_id):
 
 
 @login_required
+@chief_judge_required
 def chief_stage_list(request):
     """
     Экран Главного судьи: список всех этапов для контроля данных
@@ -142,6 +167,7 @@ def chief_stage_list(request):
 
 
 @login_required
+@chief_judge_required
 def stage_verify_panel(request, stage_id):
     """
     Интерактивная панель верификации результатов конкретного этапа
@@ -164,15 +190,14 @@ def stage_verify_panel(request, stage_id):
 # ==========================================
 
 @login_required
+@organizer_required
 def competition_summary(request, comp_id):
     """
     Сводный отчет по соревнованию (Веб-дашборд).
     """
     competition = get_object_or_404(Competition, pk=comp_id)
     
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+            
     from django.db.models import Sum
     
     individual_summary = []
@@ -234,6 +259,7 @@ def competition_summary(request, comp_id):
     })
 
 @login_required
+@organizer_required
 def export_csv_report(request, comp_id):
     """
     Бэкенд-генерация файла отчета (CSV - открывается в Excel).
@@ -271,20 +297,18 @@ def logout_view(request):
     return redirect('login') # Перенаправляем на наш новый маршрут входа
 
 @login_required
+@organizer_required
 def organizer_competitions(request):
     # Страница со списком всех соревнований для Организатора
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-    
+        
     competitions = Competition.objects.filter(is_archived=False).order_by('-start_date')
     return render(request, 'competitions/organizer_list.html', {'competitions': competitions})
 
 @login_required
+@organizer_required
 def create_competition(request):
     # Форма создания нового соревнования (ФТ-01)
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+            
     if request.method == 'POST':
         form = CompetitionForm(request.POST)
         if form.is_valid():
@@ -306,13 +330,12 @@ def create_competition(request):
     return render(request, 'competitions/create_competition.html', {'form': form})
 
 @login_required
+@organizer_required
 def manage_participants(request, comp_id):
     # Управление участниками конкретного соревнования (ФТ-02)
     competition = get_object_or_404(Competition, pk=comp_id)
     
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+            
     if request.method == 'POST':
         form = ParticipantForm(request.POST)
         if form.is_valid():
@@ -340,16 +363,14 @@ def manage_participants(request, comp_id):
     })
 
 @login_required
+@organizer_required
 def manage_stages(request, comp_id):
     """
     Управление этапами конкретного соревнования (ФТ-03)
     """
     competition = get_object_or_404(Competition, pk=comp_id)
     
-    # Ограничение доступа: только Организатор или Администратор
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+            
     if request.method == 'POST':
         form = StageForm(request.POST)
         if form.is_valid():
@@ -379,15 +400,14 @@ def manage_stages(request, comp_id):
     })
 
 @login_required
+@organizer_required
 def manage_teams(request, comp_id):
     """
     Управление командами соревнования (ФТ-02)
     """
     competition = get_object_or_404(Competition, pk=comp_id)
     
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+           
     if request.method == 'POST':
         form = TeamForm(request.POST)
         if form.is_valid():
@@ -415,6 +435,7 @@ def manage_teams(request, comp_id):
     })
 
 @login_required
+@organizer_required
 def manage_team_members(request, team_id):
     """
     Распределение участников по командам/отрядам (Состав команд)
@@ -422,9 +443,7 @@ def manage_team_members(request, team_id):
     team = get_object_or_404(Team, pk=team_id)
     competition = team.competition
     
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+           
     if request.method == 'POST':
         form = TeamMemberForm(request.POST)
         if form.is_valid():
@@ -457,6 +476,7 @@ def manage_team_members(request, team_id):
     })
 
 @login_required
+@organizer_required
 def print_protocol(request, comp_id):
     """
     Генерация официальной печатной формы (PDF)
@@ -464,9 +484,7 @@ def print_protocol(request, comp_id):
     """
     competition = get_object_or_404(Competition, pk=comp_id)
     
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+           
     from django.db.models import Sum
     
     individual_summary = []
@@ -528,9 +546,9 @@ def print_protocol(request, comp_id):
     })
 
 @login_required
+@organizer_required
+@require_POST
 def delete_competition(request, comp_id):
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
     comp = get_object_or_404(Competition, pk=comp_id)
 
     # --- ДОБАВИТЬ ЛОГ (ДО DELETE) ---
@@ -546,9 +564,9 @@ def delete_competition(request, comp_id):
     return redirect('organizer_competitions')
 
 @login_required
+@organizer_required
+@require_POST
 def delete_stage(request, stage_id):
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
     stage = get_object_or_404(Stage, pk=stage_id)
     comp_id = stage.competition.id # Запоминаем ID соревнования, чтобы вернуться обратно
 
@@ -564,9 +582,9 @@ def delete_stage(request, stage_id):
     return redirect('manage_stages', comp_id=comp_id)
 
 @login_required
+@organizer_required
+@require_POST
 def delete_team(request, team_id):
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
     team = get_object_or_404(Team, pk=team_id)
     comp_id = team.competition.id
 
@@ -582,9 +600,9 @@ def delete_team(request, team_id):
     return redirect('manage_teams', comp_id=comp_id)
 
 @login_required
+@organizer_required
+@require_POST
 def delete_participant(request, part_id):
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
     participant = get_object_or_404(Participant, pk=part_id)
     comp_id = participant.competition.id
 
@@ -600,6 +618,8 @@ def delete_participant(request, part_id):
     return redirect('manage_participants', comp_id=comp_id)
 
 @login_required
+@organizer_required
+@require_POST
 def toggle_archive(request, comp_id):
     """Функция для переноса соревнования в архив"""
     comp = get_object_or_404(Competition, id=comp_id)
@@ -618,23 +638,21 @@ def toggle_archive(request, comp_id):
     return redirect('organizer_competitions')
 
 @login_required
+@organizer_required
 def archive_list(request):
     """Страница модуля отчетности и архива"""
     # Забираем только те, что в архиве
     # --- ДОБАВЛЕНА ЗАЩИТА ---
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-
+    
     archived_comps = Competition.objects.filter(is_archived=True).order_by('-start_date')
     return render(request, 'competitions/archive_list.html', {'competitions': archived_comps})
 
 @login_required
+@organizer_required
 def export_excel(request, comp_id):
     """Генерация CSV-файла (читается в Excel) с результатами"""
     # --- ДОБАВЛЕНА ЗАЩИТА ---
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-
+    
     comp = get_object_or_404(Competition, id=comp_id)
     
     # Настраиваем HTTP-ответ так, чтобы браузер скачал это как файл
@@ -668,12 +686,11 @@ def export_excel(request, comp_id):
     return response
 
 @login_required
+@organizer_required
 def archive_detail(request, comp_id):
     """Карточка подробного просмотра архивного соревнования"""
     # --- ДОБАВЛЕНА ЗАЩИТА ---
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-
+    
     # Убеждаемся, что получаем только соревнование со статусом "В архиве"
     comp = get_object_or_404(Competition, id=comp_id, is_archived=True)
     
@@ -691,11 +708,10 @@ def archive_detail(request, comp_id):
     return render(request, 'competitions/archive_detail.html', context)
 
 @login_required
+@organizer_required
 def audit_log_list(request):
     """Просмотр системного журнала действий (только для Организатора/Админа)"""
-    if request.user.role.role_name != 'Организатор' and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+            
     # Берем последние 200 действий
     logs = AuditLog.objects.select_related('user', 'competition').all()[:200] 
     return render(request, 'competitions/audit_log.html', {'logs': logs})

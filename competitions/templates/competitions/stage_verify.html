@@ -1,106 +1,76 @@
-<!DOCTYPE html>
-<html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <title>Проверка этапа</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              rel="stylesheet">
-    </head>
-    <body class="bg-light">
-        <div class="container py-4">
-            <div class="mb-3">
-                <a href="{% url 'chief_stage_list' %}"
-                   class="btn btn-sm btn-outline-secondary">← К списку этапов проверки</a>
-            </div>
-            <div class="card shadow-sm p-4 bg-white rounded mb-4">
-                <span class="badge bg-warning text-dark mb-2 align-self-start">Контур контроля</span>
-                <h3 class="h4">Этап: <span class="text-primary">{{ stage.name }}</span></h3>
-                <p class="text-muted mb-0">Соревнование: {{ stage.competition.title }}</p>
-            </div>
-            <div class="card shadow-sm p-3">
+{% extends "competitions/components/base.html" %}
+{% block title %}Верификация: {{ stage.name }}{% endblock title %}
+{% block content %}
+    <div class="mb-3">
+        <a href="{% url "chief_stage_list" %}"
+           class="btn btn-sm btn-outline-light">← Назад к списку этапов</a>
+    </div>
+    <div class="card mb-4">
+        <div class="card-body py-4">
+            <h2 class="mb-1 text-warning">⚖️ Проверка: {{ stage.name }}</h2>
+            <p class="text-muted mb-0">Турнир: <strong class="text-light">{{ stage.competition.title }}</strong></p>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body py-4">
+            <h4 class="mb-3">Протокол этапа</h4>
+            {% if results %}
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-dark">
+                    <table class="table align-middle m-0">
+                        <thead>
                             <tr>
-                                <th>Участник (Номер)</th>
-                                <th>Показатель</th>
-                                <th>Текущий штраф</th>
-                                <th>Внесено судьей</th>
+                                <th>Участник</th>
+                                <th>Судья</th>
+                                <th>Результат</th>
+                                <th>Штраф</th>
                                 <th>Статус</th>
-                                <th class="text-end" style="width: 35%;">Действие</th>
+                                <th class="text-end">Действие</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for res in results %}
                                 <tr>
-                                    <td>
-                                        <strong>{{ res.participant.full_name }}</strong>
-                                        <span class="badge bg-secondary ms-1">№ {{ res.participant.bib_number }}</span>
-                                    </td>
-                                    <td class="fw-bold fs-5 text-dark">{{ res.value }}</td>
-                                    <td class="text-danger fw-bold">{{ res.penalty_value }}</td>
-                                    <td><small class="text-muted">{{ res.judge.username }} ({{ res.created_at|date:"H:i" }})</small></td>
+                                    <td class="fw-bold">{{ res.participant.full_name }}</td>
+                                    <td class="text-muted">{{ res.judge.username }}</td>
+                                    <td class="text-warning fw-bold">{{ res.value }}</td>
+                                    <td class="text-danger">{{ res.penalty_value|default:"0.000" }}</td>
                                     <td>
                                         {% if res.is_verified %}
-                                            <span class="badge bg-success">Подтвержден</span>
+                                            <span class="text-success fw-bold">Верифицирован</span>
                                         {% else %}
-                                            <span class="badge bg-danger">Ожидает проверки</span>
+                                            <span class="text-warning">Ожидает</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-end">
-                                        {% if not res.is_verified %}
-                                            <div class="d-flex justify-content-end gap-2">
-                                                <form method="post" action="{% url 'verify_results_backend' stage.id %}">
+                                        <div class="d-flex justify-content-end flex-wrap gap-2">
+                                            {% if not res.is_verified %}
+                                                <form action="{% url "verify_results_backend" res.id %}"
+                                                      method="post"
+                                                      class="d-inline">
                                                     {% csrf_token %}
-                                                    <input type="hidden" name="result_id" value="{{ res.id }}">
-                                                    <input type="hidden" name="action" value="verify">
-                                                    <button type="submit" class="btn btn-sm btn-success">Утвердить</button>
+                                                    <input type="hidden" name="action" value="approve">
+                                                    <button type="submit" class="btn btn-sm btn-outline-success">Подтвердить</button>
                                                 </form>
-                                                <button class="btn btn-sm btn-outline-warning"
-                                                        type="button"
-                                                        data-bs-toggle="collapse"
-                                                        data-bs-target="#edit-{{ res.id }}">Изменить штраф</button>
-                                            </div>
-                                            <div class="collapse mt-2 text-start" id="edit-{{ res.id }}">
-                                                <div class="card card-body p-2 bg-light">
-                                                    <form method="post" action="{% url 'verify_results_backend' stage.id %}">
-                                                        {% csrf_token %}
-                                                        <input type="hidden" name="result_id" value="{{ res.id }}">
-                                                        <input type="hidden" name="action" value="edit_penalty">
-                                                        <div class="mb-2">
-                                                            <input type="number"
-                                                                   step="0.001"
-                                                                   class="form-control form-control-sm"
-                                                                   name="new_penalty"
-                                                                   placeholder="Новое значение штрафа"
-                                                                   required>
-                                                        </div>
-                                                        <div class="mb-2">
-                                                            <input type="text"
-                                                                   class="form-control form-control-sm"
-                                                                   name="reason"
-                                                                   placeholder="Причина (для журнала аудита)"
-                                                                   required>
-                                                        </div>
-                                                        <button type="submit" class="btn btn-xs btn-warning w-100 btn-sm text-white">Сохранить правку</button>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        {% else %}
-                                            <span class="text-muted small">Корректировка закрыта</span>
-                                        {% endif %}
+                                            {% endif %}
+                                            <form action="{% url "verify_results_backend" res.id %}"
+                                                  method="post"
+                                                  class="d-inline">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="delete">
+                                                <button type="submit"
+                                                        class="btn btn-sm btn-danger"
+                                                        onclick="return confirm('Удалить этот результат?');">Удалить</button>
+                                            </form>
+                                        </div>
                                     </td>
-                                </tr>
-                            {% empty %}
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">Результатов на данном этапе пока не зафиксировано.</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-            </div>
+            {% else %}
+                <p class="text-muted m-0">В этом этапе пока нет ни одного результата.</p>
+            {% endif %}
         </div>
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    </body>
-</html>
+    </div>
+{% endblock content %}

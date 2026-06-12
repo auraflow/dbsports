@@ -1,0 +1,17 @@
+<nav class="navbar border-bottom py-3 mb-4">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div class="navbar-brand text-warning fw-bold m-0">🏆 АСУ Соревнований</div>
+        <ul class="nav d-flex align-items-center gap-3 m-0 p-0">
+            <li class="nav-item"><a href="{% url "dashboard" %}" class="nav-link px-0">Главная</a></li>
+            {% if request.user.is_authenticated %}
+                <li class="nav-item"><span class="text-success fw-bold">{{ request.user.username }}</span></li>
+                <li class="nav-item">
+                    <form action="{% url "logout" %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger">Выход</button>
+                    </form>
+                </li>
+            {% endif %}
+        </ul>
+    </div>
+</nav>

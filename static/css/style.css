@@ -1,0 +1,117 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
+
+:root {
+    /* Палитра Gruvbox Dark */
+    --gb-bg: #282828;
+    --gb-panel: #3c3836;
+    --gb-text: #ebdbb2;
+    --gb-muted: #a89984;
+    --gb-border: #504945;
+    --gb-green: #b8bb26;
+    --gb-red: #fb4934;
+    --gb-yellow: #fabd2f;
+}
+
+body {
+    background-color: var(--gb-bg);
+    color: var(--gb-text);
+    font-family: "Montserrat", sans-serif;
+    line-height: 1.6;
+}
+
+.gb-text-color {
+    color: var(--gb-text);
+}
+
+/* Переопределение компонентов Bootstrap под терминальный стиль */
+.card, .navbar {
+    background-color: var(--gb-panel) !important;
+    border: 1px solid var(--gb-border) !important;
+    border-radius: 0 !important; /* Строгие прямые углы */
+}
+
+.border-bottom, .border-top {
+    border-color: var(--gb-border) !important;
+}
+
+/* Переопределение текстовых цветов Bootstrap */
+.text-muted { color: var(--gb-muted) !important; }
+.text-success { color: var(--gb-green) !important; }
+.text-danger { color: var(--gb-red) !important; }
+.text-warning { color: var(--gb-yellow) !important; }
+.text-light { color: var(--gb-text) !important; }
+
+/* Глобальные ссылки */
+a { color: var(--gb-text); text-decoration: none; transition: color 0.2s; }
+a:hover { color: var(--gb-yellow); }
+.nav-link { color: var(--gb-text) !important; }
+.nav-link:hover { color: var(--gb-yellow) !important; }
+
+/* Таблицы Bootstrap */
+.table { color: var(--gb-text) !important; border-color: var(--gb-border) !important; }
+.table th, .table td { background-color: transparent !important; color: var(--gb-text) !important; border-bottom: 1px solid var(--gb-border); }
+.table thead th { border-bottom: 2px solid var(--gb-border); }
+
+/* Кнопки Bootstrap */
+.btn { border-radius: 0 !important; transition: all 0.2s; }
+
+.btn-outline-light { border-color: var(--gb-border); color: var(--gb-text); }
+.btn-outline-light:hover { background-color: var(--gb-bg); border-color: var(--gb-yellow); color: var(--gb-yellow); }
+
+.btn-outline-success { border-color: var(--gb-green); color: var(--gb-green); }
+.btn-outline-success:hover { background-color: var(--gb-green); color: var(--gb-bg); }
+
+.btn-danger { background-color: transparent; border-color: var(--gb-red); color: var(--gb-red); }
+.btn-danger:hover { background-color: var(--gb-red); color: var(--gb-bg); border-color: var(--gb-red); }
+
+hr {
+    border-color: var(--gb-border);
+}
+
+.login-wrapper {
+    min-height: 60vh;
+}
+
+.login-card {
+    max-width: 400px;
+}
+
+/* ================= Стили для печатного протокола ================= */
+.print-theme {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Times New Roman', Times, serif !important;
+}
+
+.protocol-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #000000;
+    padding-bottom: 1rem;
+}
+
+/* Переопределяем цвета таблицы для бумаги */
+.print-theme .print-table th,
+.print-theme .print-table td {
+    color: #000000 !important;
+    border-bottom: 1px solid #000000 !important;
+}
+
+.print-theme .print-table thead th {
+    border-bottom: 2px solid #000000 !important;
+}
+
+/* === ПРАВИЛА ДЛЯ ПРИНТЕРА === */
+@media print {
+    /* Скрываем навбар, футер и кнопки при выводе на бумагу */
+    .navbar, footer, .no-print {
+        display: none !important;
+    }
+    
+    /* Убираем отступы контейнера, чтобы принтер использовал все поля листа */
+    main.container {
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+    }
+}

@@ -1,122 +1,27 @@
-<!DOCTYPE html>
-<html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description"
-              content="Система учета результатов спортивных соревнований">
-        <meta name="keywords"
-              content="спорт, соревнования, учет, таблица, результаты">
-        <title>Главное меню - Система учета</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              rel="stylesheet">
-        <style>
-            .navbar {
-                height: 70px;
-            }
-
-            .main-container {
-                max-width: 900px;
-                margin: 0 auto;
-            }
-
-            .card-locked {
-                opacity: 0.65;
-                background-color: #f8f9fa;
-                pointer-events: none;
-                /* Запрещаем любые случайные клики по всей серой карточке */
-            }
-        </style>
-    </head>
-    <body class="bg-light">
-        <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-            <div class="container d-flex justify-content-between align-items-center">
-                <h2 class="mb-0 text-white fs-4">Добро пожаловать, {{ user.get_full_name|default:user.username }}!</h2>
-                <div class="d-flex gap-2">
-                    {% if user.is_superuser %}
-                        <a href="{% url 'admin:index' %}"
-                           class="btn btn-danger shadow-sm"
-                           target="_blank">⚙️ Панель БД</a>
-                    {% endif %}
-                    <a href="{% url 'logout' %}" class="btn btn-outline-light">Выйти из системы</a>
-                </div>
-            </div>
-        </nav>
-        <div class="container main-container py-2">
-            <h2 class="mb-4 text-dark">Панель управления системой</h2>
-            <div class="row g-4">
-                <div class="col-md-6">
-                    <div class="card h-100 shadow-sm border-primary">
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title text-primary">Полевой судья</h5>
-                            <p class="card-text text-muted flex-grow-1">Фиксация результатов прохождения этапов участниками и командами непосредственно на площадке.</p>
-                            <a href="{% url 'stage_list' %}" class="btn btn-primary w-100 mt-auto">Перейти к вводу результатов</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    {% if user.role.role_name == 'Главный судья' or user.role.role_name == 'Организатор' or user.is_superuser %}
-                        <div class="card h-100 shadow-sm border-warning">
-                            <div class="card-body d-flex flex-column">
-                                <h5 class="card-title text-warning text-dark">Главный судья</h5>
-                                <p class="card-text text-muted flex-grow-1">Содержательная проверка данных, корректировка штрафов и подтверждение результатов.</p>
-                                <a href="{% url 'chief_stage_list' %}"
-                                   class="btn btn-warning w-100 mt-auto text-dark fw-bold">Панель верификации</a>
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="card h-100 shadow-sm border-warning card-locked">
-                            <div class="card-body d-flex flex-column">
-                                <h5 class="card-title text-warning text-dark">Главный судья</h5>
-                                <p class="card-text text-muted flex-grow-1">Содержательная проверка данных, корректировка штрафов и подтверждение результатов.</p>
-                                <button class="btn btn-secondary w-100 mt-auto" disabled>Доступ ограничен</button>
-                            </div>
-                        </div>
-                    {% endif %}
-                </div>
-                <div class="col-md-6">
-                    {% if user.role.role_name == 'Организатор' or user.is_superuser %}
-                        <div class="card h-100 shadow-sm border-success">
-                            <div class="card-body d-flex flex-column">
-                                <h5 class="card-title text-success">Организатор</h5>
-                                <p class="card-text text-muted flex-grow-1">Управление структурой соревнований, списки участников и формирование команд.</p>
-                                <a href="{% url 'organizer_competitions' %}"
-                                   class="btn btn-success w-100 mt-auto">Управление (Admin)</a>
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="card h-100 shadow-sm border-success card-locked">
-                            <div class="card-body d-flex flex-column">
-                                <h5 class="card-title text-success">Организатор</h5>
-                                <p class="card-text text-muted flex-grow-1">Управление структурой соревнований, списки участников и формирование команд.</p>
-                                <button class="btn btn-secondary w-100 mt-auto" disabled>Доступ ограничен</button>
-                            </div>
-                        </div>
-                    {% endif %}
-                </div>
-                <div class="col-md-6">
-                    {% if user.role.role_name == 'Организатор' or user.is_superuser %}
-                        <div class="card h-100 shadow-sm border-info">
-                            <div class="card-body d-flex flex-column">
-                                <h5 class="card-title text-info text-dark">Отчетность и архивация</h5>
-                                <p class="card-text text-muted flex-grow-1">Автоматический расчет итоговых мест, генерация протоколов, доступ к архивам и системному журналу.</p>
-                                <a href="{% url 'archive_list' %}"
-                                   class="btn btn-info w-100 mt-auto text-dark fw-bold">📦 Перейти в Архив</a>
-                                <a href="{% url 'audit_log_list' %}"
-                                   class="btn btn-dark w-100 mt-2 fw-bold shadow-sm">🛡️ Журнал аудита</a>
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="card h-100 shadow-sm border-info card-locked">
-                            <div class="card-body d-flex flex-column">
-                                <h5 class="card-title text-info text-dark">Отчетность и архивация</h5>
-                                <p class="card-text text-muted flex-grow-1">Автоматический расчет итоговых мест, генерация протоколов, доступ к архивам и системному журналу.</p>
-                                <button class="btn btn-secondary w-100 mt-auto" disabled>Доступ ограничен</button>
-                            </div>
-                        </div>
-                    {% endif %}
-                </div>
+{% extends "competitions/components/base.html" %}
+{% block title %}Главная панель | АСУ Соревнований{% endblock title %}
+{% block content %}
+    <div class="card mb-4">
+        <div class="card-body text-center py-5">
+            <h1 class="gb-text-color mb-3">Добро пожаловать, {{ request.user.full_name|default:request.user.username }}!</h1>
+            <p class="text-muted mb-0">
+                Ваша роль в системе: <strong class="text-success">{{ request.user.role.role_name|default:"Роль не назначена" }}</strong>
+            </p>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <h2 class="gb-text-color mb-4">Доступные действия</h2>
+            <div class="d-flex justify-content-center flex-wrap gap-3">
+                <a href="{% url "stage_list" %}" class="btn btn-outline-light">⏱️ Ввод результатов (Судьи)</a>
+                {% if request.user.role.role_name == "Организатор" or request.user.is_superuser %}
+                    <a href="{% url "organizer_competitions" %}"
+                       class="btn btn-outline-light">🏆 Управление соревнованиями</a>
+                {% endif %}
+                {% if request.user.role.role_name in "Организатор,Главный судья" or request.user.is_superuser %}
+                    <a href="{% url "chief_stage_list" %}" class="btn btn-outline-light">⚖️ Верификация результатов</a>
+                {% endif %}
             </div>
         </div>
-    </body>
-</html>
+    </div>
+{% endblock content %}

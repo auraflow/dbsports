@@ -1,242 +1,53 @@
-<!DOCTYPE html>
-<html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <title>Протокол соревнований - {{ competition.title }}</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              rel="stylesheet">
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-        <style>
-            body {
-                background-color: #f8f9fa;
-                color: #000;
-                font-family: 'Times New Roman', Times, serif;
-            }
-
-            .page-pdf {
-                background: white;
-                padding: 20mm;
-                max-width: 800px;
-                margin: 0 auto;
-                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            }
-
-            .protocol-header {
-                text-align: center;
-                margin-bottom: 30px;
-                border-bottom: 2px solid #000;
-                padding-bottom: 10px;
-            }
-
-            .section-title {
-                font-size: 1.2rem;
-                font-weight: bold;
-                text-transform: uppercase;
-                text-align: center;
-                margin-top: 30px;
-                margin-bottom: 15px;
-                background-color: #f1f1f1;
-                padding: 5px;
-            }
-
-            /* Скрываем настройки при печати, если вдруг пользователь нажмет Ctrl+P */
-            @media print {
-                .no-print {
-                    display: none !important;
-                }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container py-4">
-            <div class="mb-4 no-print bg-white p-3 border rounded shadow-sm"
-                 style="max-width: 800px;
-                        margin: 0 auto">
-                <p class="mb-2 fw-bold text-center text-secondary">Конструктор отчета:</p>
-                <div class="d-flex justify-content-center gap-4 mb-3">
-                    {% if competition.has_individual %}
-                        <div class="form-check form-switch fs-5">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   id="check-individual"
-                                   checked
-                                   onchange="toggleSections()">
-                            <label class="form-check-label" for="check-individual">Личное первенство</label>
-                        </div>
-                    {% endif %}
-                    {% if competition.has_team %}
-                        <div class="form-check form-switch fs-5">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   id="check-team"
-                                   checked
-                                   onchange="toggleSections()">
-                            <label class="form-check-label" for="check-team">Командный зачет</label>
-                        </div>
-                    {% endif %}
-                </div>
-                <div class="d-flex justify-content-center gap-2">
-                    <a href="javascript:window.close();" class="btn btn-outline-secondary">Закрыть</a>
-                    <button type="button"
-                            onclick="generatePDF();"
-                            class="btn btn-danger shadow-sm"
-                            id="btn-download">📥 Скачать сформированный PDF</button>
-                </div>
-            </div>
-            <div id="protocol-content" class="page-pdf">
-                <div class="protocol-header">
-                    <h4 class="mb-1">ДЕТСКИЙ ОЗДОРОВИТЕЛЬНЫЙ ЛАГЕРЬ</h4>
-                    <h2 class="mb-2">ОФИЦИАЛЬНЫЙ ПРОТОКОЛ СОРЕВНОВАНИЙ</h2>
-                    <h5 class="fw-normal">Мероприятие: <strong>{{ competition.title }}</strong></h5>
-                    <h5 class="fw-normal">Дата проведения: <strong>{{ competition.start_date|date:"d.m.Y" }}</strong></h5>
-                </div>
-                {% if competition.has_individual %}
-                    <div id="section-individual">
-                        <div class="section-title">Личное первенство</div>
-                        <table class="table table-bordered border-dark text-center align-middle mb-4">
-                            <thead class="table-light border-dark">
-                                <tr>
-                                    <th style="width: 10%;">Место</th>
-                                    <th style="width: 15%;">Старт. №</th>
-                                    <th style="text-align: left;">ФИО Участника</th>
-                                    <th style="width: 20%;">Сумма штрафов</th>
-                                    <th style="width: 20%;">Итоговый результат</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for row in individual_summary %}
-                                    <tr>
-                                        <td><strong>{{ forloop.counter }}</strong></td>
-                                        <td>{{ row.participant.bib_number }}</td>
-                                        <td style="text-align: left;">{{ row.participant.full_name }}</td>
-                                        <td>{{ row.total_penalty|floatformat:3 }}</td>
-                                        <td><strong>{{ row.final_score|floatformat:3 }}</strong></td>
-                                    </tr>
-                                {% empty %}
-                                    <tr>
-                                        <td colspan="5" class="py-3">Верифицированные результаты отсутствуют.</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% endif %}
-                {% if competition.has_team %}
-                    <div id="section-team">
-                        <div class="section-title">Командный зачет (Отряды)</div>
-                        <table class="table table-bordered border-dark text-center align-middle mb-5">
-                            <thead class="table-light border-dark">
-                                <tr>
-                                    <th style="width: 15%;">Место</th>
-                                    <th style="text-align: left;">Название команды</th>
-                                    <th style="width: 25%;">Зачетных участников</th>
-                                    <th style="width: 25%;">Суммарный результат</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for row in team_summary %}
-                                    <tr>
-                                        <td><strong>{{ forloop.counter }}</strong></td>
-                                        <td style="text-align: left;" class="fw-bold">{{ row.team }}</td>
-                                        <td>{{ row.members_count }} чел.</td>
-                                        <td><strong>{{ row.team_score|floatformat:3 }}</strong></td>
-                                    </tr>
-                                {% empty %}
-                                    <tr>
-                                        <td colspan="4" class="py-3">Команды не сформированы или нет результатов.</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% endif %}
-                <div class="mt-5 pt-4 d-flex justify-content-between align-items-end"
-                     style="page-break-inside: avoid">
-                    <div>
-                        <p class="mb-1">Главный судья соревнований:</p>
-                        <div style="border-bottom: 1px solid #000; width: 250px; margin-top: 30px"></div>
-                        <p class="small text-muted mt-1 text-center">(Подпись, Ф.И.О.)</p>
-                    </div>
-                    <div>
-                        <p class="mb-1">Дата формирования протокола:</p>
-                        <p class="fw-bold">{% now "d.m.Y H:i" %}</p>
-                    </div>
-                </div>
-            </div>
+{% extends "competitions/components/base.html" %}
+{% block title %}Официальный протокол: {{ competition.title }}{% endblock title %}
+{% block body_class %}print-theme{% endblock body_class %}
+{% block content %}
+    <div class="mb-4 no-print">
+        <button onclick="history.back()" class="btn btn-outline-light">← Вернуться назад</button>
+        <button onclick="window.print()" class="btn btn-outline-success">🖨️ Распечатать</button>
+    </div>
+    <div class="protocol-header">
+        <h1 class="mb-2">ОФИЦИАЛЬНЫЙ ПРОТОКОЛ СОРЕВНОВАНИЙ</h1>
+        <h2 class="mb-3">«{{ competition.title }}»</h2>
+        <p><strong>Дата проведения:</strong> {{ competition.start_date|date:"d.m.Y" }} | <strong>Статус:</strong> {{ competition.status }}</p>
+    </div>
+    {% if standings %}
+        <div class="table-responsive">
+            <table class="table print-table w-100 m-0">
+                <thead>
+                    <tr>
+                        <th>Место</th>
+                        <th>ФИО участника</th>
+                        <th>Команда</th>
+                        <th>Итоговый результат</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in standings %}
+                        <tr>
+                            <td class="fw-bold">{{ row.place }}</td>
+                            <td>{{ row.participant.full_name }}</td>
+                            <td>{{ row.team_name|default:"Личный зачет" }}</td>
+                            <td class="fw-bold">{{ row.final_score }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-        <script>
-            // Функция скрытия/показа таблиц
-            function toggleSections() {
-                const checkInd = document.getElementById('check-individual');
-                const checkTm = document.getElementById('check-team');
-
-                const showIndividual = checkInd ? checkInd.checked : false;
-                const showTeam = checkTm ? checkTm.checked : false;
-
-                const btnDownload = document.getElementById('btn-download');
-
-                if (document.getElementById('section-individual')) {
-                    document.getElementById('section-individual').style.display = showIndividual ? 'block' : 'none';
-                }
-                if (document.getElementById('section-team')) {
-                    document.getElementById('section-team').style.display = showTeam ? 'block' : 'none';
-                }
-
-                if (!showIndividual && !showTeam) {
-                    btnDownload.disabled = true;
-                    btnDownload.innerText = "❌ Выберите хотя бы один зачет";
-                    btnDownload.classList.replace('btn-danger', 'btn-secondary');
-                } else {
-                    btnDownload.disabled = false;
-                    btnDownload.innerText = "📥 Скачать сформированный PDF";
-                    btnDownload.classList.replace('btn-secondary', 'btn-danger');
-                }
-            }
-
-            // Функция генерации PDF
-            function generatePDF() {
-                const element = document.getElementById('protocol-content');
-
-                // 1. БЕЗОПАСНО ПРОВЕРЯЕМ, КАКИЕ ТУМБЛЕРЫ ЕСТЬ НА ЭКРАНЕ
-                const checkInd = document.getElementById('check-individual');
-                const checkTm = document.getElementById('check-team');
-
-                const isInd = checkInd ? checkInd.checked : false;
-                const isTm = checkTm ? checkTm.checked : false;
-
-                // 2. ДИНАМИЧЕСКИ ФОРМИРУЕМ НАЗВАНИЕ ФАЙЛА
-                let reportName = 'Протокол_{{ competition.id }}_';
-                if (isInd && isTm) {
-                    reportName += 'Полный';
-                } else if (isInd) {
-                    reportName += 'Личный';
-                } else if (isTm) {
-                    reportName += 'Командный';
-                } else {
-                    reportName += 'Отчет';
-                }
-
-                // 3. НАСТРОЙКИ PDF
-                const opt = {
-                    margin: 15,
-                    filename: reportName + '.pdf',
-                    image: {
-                        type: 'jpeg',
-                        quality: 0.98
-                    },
-                    html2canvas: {
-                        scale: 2
-                    },
-                    jsPDF: {
-                        unit: 'mm',
-                        format: 'a4',
-                        orientation: 'portrait'
-                    }
-                };
-
-                // Запуск генерации
-                html2pdf().set(opt).from(element).save();
-            }
-        </script>
-    </body>
-</html>
+    {% else %}
+        <p class="text-center mt-4"><em>Результаты не сформированы.</em></p>
+    {% endif %}
+    <div class="mt-5 pt-5 d-flex justify-content-between protocol-signatures">
+        <div>
+            <p>Главный судья: ___________________ / _________________ /</p>
+        </div>
+        <div>
+            <p>Организатор: ___________________ / _________________ /</p>
+        </div>
+    </div>
+    <script>
+        window.onload = function() {
+            window.print();
+        };
+    </script>
+{% endblock content %}

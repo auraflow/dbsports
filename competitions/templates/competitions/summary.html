@@ -1,162 +1,47 @@
-<!DOCTYPE html>
-<html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description"
-              content="Система учета результатов спортивных соревнований">
-        <meta name="keywords"
-              content="спорт, соревнования, учет, таблица, результаты">
-        <title>Итоги: {{ competition.title }}</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              rel="stylesheet">
-    </head>
-    <body class="bg-light">
-        <div class="container py-4">
-            <h2 class="mb-3">Управление: <span class="text-primary">{{ competition.title }}</span></h2>
-            <ul class="nav nav-tabs mb-4">
-                <li class="nav-item">
-                    <a href="{% url 'organizer_competitions' %}"
-                       class="btn btn-sm btn-outline-secondary">← К списку соревнований</a>
-                </li>
-            </ul>
-            <ul class="nav nav-tabs mb-4">
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'manage_stages' competition.id %}">⚙️ Этапы</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'manage_teams' competition.id %}">🛡️ Команды (Отряды)</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link"
-                       href="{% url 'manage_participants' competition.id %}">🏃 Участники</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link active fw-bold"
-                       href="{% url 'competition_summary' competition.id %}">📊 Сводные итоги</a>
-                </li>
-            </ul>
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <ul class="nav nav-pills mb-4" id="pills-tab" role="tablist">
-                    {% if competition.has_individual %}
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active"
-                                    id="pills-individual-tab"
-                                    data-bs-toggle="pill"
-                                    data-bs-target="#pills-individual"
-                                    type="button"
-                                    role="tab">Личный зачет</button>
-                        </li>
-                    {% endif %}
-                    {% if competition.has_team %}
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link {% if not competition.has_individual %}active{% endif %}"
-                                    id="pills-team-tab"
-                                    data-bs-toggle="pill"
-                                    data-bs-target="#pills-team"
-                                    type="button"
-                                    role="tab">🏆 Командный зачет</button>
-                        </li>
-                    {% endif %}
-                </ul>
-                <div class="d-flex gap-2">
-                    <a href="{% url 'export_csv_report' competition.id %}"
-                       class="btn btn-success shadow-sm">⬇️ CSV (Excel)</a>
-                    <a href="{% url 'print_protocol' competition.id %}"
-                       class="btn btn-danger shadow-sm"
-                       target="_blank">🖨️ Протокол (PDF)</a>
-                </div>
-            </div>
-            <div class="tab-content" id="pills-tabContent">
-                {% if competition.has_individual %}
-                    <div class="tab-pane fade show active"
-                         id="pills-individual"
-                         role="tabpanel">
-                        <div class="card shadow-sm p-4 bg-white rounded">
-                            <div class="table-responsive">
-                                <table class="table table-hover table-striped mb-0 align-middle">
-                                    <thead class="table-dark">
-                                        <tr>
-                                            <th scope="col">Место</th>
-                                            <th scope="col">Номер</th>
-                                            <th scope="col">Участник</th>
-                                            <th scope="col">Сумма штрафов</th>
-                                            <th scope="col">Итоговый результат</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for row in individual_summary %}
-                                            <tr>
-                                                <td><strong>{{ forloop.counter }}</strong></td>
-                                                <td>
-                                                    {% if row.participant.bib_number %}
-                                                        <span class="badge bg-secondary">{{ row.participant.bib_number }}</span>
-                                                    {% else %}
-                                                        <span class="text-muted">—</span>
-                                                    {% endif %}
-                                                </td>
-                                                <td class="fw-bold">{{ row.participant.full_name }}</td>
-                                                <td class="text-danger">{{ row.total_penalty|floatformat:3 }}</td>
-                                                <td class="fw-bold text-success fs-5">{{ row.final_score|floatformat:3 }}</td>
-                                            </tr>
-                                        {% empty %}
-                                            <tr>
-                                                <td colspan="5" class="text-center text-muted py-5">Нет участников</td>
-                                            </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                {% endif %}
-                {% if competition.has_team %}
-                    <div class="tab-pane fade {% if not competition.has_individual %}show active{% endif %}"
-                         id="pills-team"
-                         role="tabpanel">
-                        <div class="card shadow-sm p-4 bg-white rounded border-top border-warning border-4">
-                            <div class="table-responsive">
-                                <table class="table table-hover mb-0 align-middle">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th scope="col">Место отряда</th>
-                                            <th scope="col">Название команды</th>
-                                            <th scope="col">Зачетных участников</th>
-                                            <th scope="col">Суммарный результат</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for row in team_summary %}
-                                            <tr>
-                                                <td>
-                                                    {% if forloop.counter == 1 and row.members_count > 0 and row.team_score > 0 %}
-                                                        <span class="badge bg-warning text-dark fs-6 px-3 py-2 shadow-sm">🥇 1</span>
-                                                    {% elif forloop.counter == 2 and row.members_count > 0 and row.team_score > 0 %}
-                                                        <span class="badge bg-secondary fs-6 px-3 py-2 shadow-sm">🥈 2</span>
-                                                    {% elif forloop.counter == 3 and row.members_count > 0 and row.team_score > 0 %}
-                                                        <span class="badge text-white fs-6 px-3 py-2 shadow-sm"
-                                                              style="background-color: #cd7f32">🥉 3</span>
-                                                    {% else %}
-                                                        <strong>{{ forloop.counter }}</strong>
-                                                    {% endif %}
-                                                </td>
-                                                <td class="fw-bold text-primary">{{ row.team }}</td>
-                                                <td><span class="badge bg-info text-dark">{{ row.members_count }} чел.</span></td>
-                                                <td class="fw-bold fs-5">{{ row.team_score|floatformat:3 }}</td>
-                                            </tr>
-                                        {% empty %}
-                                            <tr>
-                                                <td colspan="4" class="text-center text-muted py-5">Команды еще не сформированы</td>
-                                            </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                {% endif %}
-            </div>
+{% extends "competitions/components/base.html" %}
+{% block title %}Итоги этапа{% endblock title %}
+{% block content %}
+    <div class="mb-3">
+        <button onclick="history.back()" class="btn btn-sm btn-outline-light">← Назад</button>
+    </div>
+    <div class="card mb-4">
+        <div class="card-body py-4">
+            <h2 class="mb-1 text-warning">🏆 Турнирная таблица</h2>
+            <p class="text-muted mb-0">Сводные результаты участников на этапе.</p>
         </div>
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    </body>
-</html>
+    </div>
+    <div class="card">
+        <div class="card-body py-4">
+            {% if standings %}
+                <div class="table-responsive">
+                    <table class="table table-borderless align-middle m-0">
+                        <thead>
+                            <tr>
+                                <th>Место</th>
+                                <th>Участник</th>
+                                <th>Базовый результат</th>
+                                <th>Штраф</th>
+                                <th class="text-end">Итоговый счет</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in standings %}
+                                <tr>
+                                    <td class="fw-bold {% if row.place == 1 %}text-warning{% elif row.place == 2 %}text-light{% elif row.place == 3 %}text-success{% else %}text-muted{% endif %}">
+                                        {{ row.place }}
+                                    </td>
+                                    <td class="fw-bold">{{ row.participant.full_name }}</td>
+                                    <td>{{ row.original_value }}</td>
+                                    <td class="text-danger">{{ row.penalty|default:"0.000" }}</td>
+                                    <td class="text-end fw-bold text-success">{{ row.final_score }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted m-0">Результаты пока не сформированы или не верифицированы Главным судьей.</p>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}

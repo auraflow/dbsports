@@ -1,144 +1,50 @@
-<!DOCTYPE html>
-<html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description"
-              content="Система учета результатов спортивных соревнований">
-        <meta name="keywords"
-              content="спорт, соревнования, учет, таблица, результаты">
-        <title>Детали архива: {{ competition.title }}</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              rel="stylesheet">
-    </head>
-    <body class="bg-light">
-        <div class="container py-4" style="max-width: 900px;">
-            <div class="mb-3">
-                <a href="{% url 'archive_list' %}"
-                   class="btn btn-sm btn-outline-secondary">← Назад к списку архивов</a>
-            </div>
-            <div class="card shadow-sm mb-4 border-0 border-top border-secondary border-4">
-                <div class="card-body p-4 d-flex justify-content-between align-items-center">
-                    <div>
-                        <span class="badge bg-secondary mb-2">🔒 Архивная копия (Чтение)</span>
-                        <h2 class="h3 mb-1 text-dark">{{ competition.title }}</h2>
-                        <p class="text-muted mb-0">Дата проведения: {{ competition.start_date|date:"d.m.Y" }} | Тип: {{ competition.type.type_name }}</p>
-                    </div>
-                    <div class="d-flex flex-column gap-2">
-                        <a href="{% url 'export_excel' competition.id %}"
-                           class="btn btn-success shadow-sm w-100">Выгрузить Excel 📊</a>
-                        <a href="{% url 'print_protocol' competition.id %}"
-                           class="btn btn-danger shadow-sm w-100"
-                           target="_blank">Протокол PDF 📄</a>
-                    </div>
-                </div>
-            </div>
-            <ul class="nav nav-tabs mb-4" id="archiveTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active fw-bold text-secondary"
-                            data-bs-toggle="tab"
-                            data-bs-target="#stages"
-                            type="button"
-                            role="tab">⚙️ Этапы ({{ stages.count }})</button>
-                </li>
-                {% if competition.has_team %}
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link fw-bold text-secondary"
-                                data-bs-toggle="tab"
-                                data-bs-target="#teams"
-                                type="button"
-                                role="tab">🛡️ Команды ({{ teams.count }})</button>
-                    </li>
-                {% endif %}
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-bold text-secondary"
-                            data-bs-toggle="tab"
-                            data-bs-target="#participants"
-                            type="button"
-                            role="tab">🏃 Участники ({{ participants.count }})</button>
-                </li>
-            </ul>
-            <div class="tab-content bg-white p-4 shadow-sm rounded border border-top-0"
-                 style="margin-top: -25px">
-                <div class="tab-pane fade show active" id="stages" role="tabpanel">
-                    <table class="table table-hover table-sm">
-                        <thead class="table-light">
+{% extends "competitions/components/base.html" %}
+{% block title %}Архив: {{ competition.title }}{% endblock title %}
+{% block content %}
+    <div class="mb-3">
+        <a href="{% url "archive_list" %}" class="btn btn-sm btn-outline-light">← Назад к списку архива</a>
+    </div>
+    <div class="card mb-4">
+        <div class="card-body py-4">
+            <h2 class="mb-2 text-warning">📁 Детали архива</h2>
+            <p class="text-muted m-0">
+                Соревнование: <strong class="text-light">{{ competition.title }}</strong>
+                <br>
+                Дата проведения: <span class="text-light">{{ competition.start_date|date:"d.m.Y" }}</span>
+            </p>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body py-4">
+            <h4 class="mb-3">Сводная информация</h4>
+            <p class="text-muted">Это соревнование находится в архиве. Любые изменения данных заблокированы.</p>
+            {% if stages %}
+                <div class="table-responsive mt-4">
+                    <table class="table table-borderless align-middle m-0">
+                        <thead>
                             <tr>
-                                <th style="width: 15%;">ID Этапа</th>
-                                <th>Название</th>
-                                <th>Единица измерения</th>
+                                <th>Этап</th>
+                                <th>Тип замера</th>
+                                <th class="text-end">Итоги</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for stage in stages %}
                                 <tr>
-                                    <td class="text-muted">#{{ stage.id }}</td>
-                                    <td><strong>{{ stage.name }}</strong></td>
-                                    <td><span class="badge bg-light text-dark border">{{ stage.type.measure_unit }}</span></td>
-                                </tr>
-                            {% empty %}
-                                <tr>
-                                    <td colspan="3" class="text-center text-muted py-3">Нет данных</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% if competition.has_team %}
-                    <div class="tab-pane fade" id="teams" role="tabpanel">
-                        <table class="table table-hover table-sm">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="width: 15%;">ID</th>
-                                    <th>Название отряда</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for team in teams %}
-                                    <tr>
-                                        <td class="text-muted">#{{ team.id }}</td>
-                                        <td><strong>{{ team.team_name }}</strong></td>
-                                    </tr>
-                                {% empty %}
-                                    <tr>
-                                        <td colspan="2" class="text-center text-muted py-3">Команд не было</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% endif %}
-                <div class="tab-pane fade" id="participants" role="tabpanel">
-                    <table class="table table-hover table-sm">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 15%;">Бейдж</th>
-                                <th>ФИО Спортсмена</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in participants %}
-                                <tr>
-                                    <td>
-                                        {% if p.bib_number %}
-                                            <span class="badge bg-dark">{{ p.bib_number }}</span>
-                                        {% else %}
-                                            <span class="text-muted">—</span>
-                                        {% endif %}
+                                    <td class="fw-bold">{{ stage.name }}</td>
+                                    <td class="text-muted">{{ stage.type.measure_unit }}</td>
+                                    <td class="text-end">
+                                        <a href="{% url "stage_leaderboard" stage.id %}"
+                                           class="btn btn-sm btn-outline-light">Смотреть таблицу</a>
                                     </td>
-                                    <td>{{ p.full_name }}</td>
-                                </tr>
-                            {% empty %}
-                                <tr>
-                                    <td colspan="2" class="text-center text-muted py-3">Участники отсутствуют</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-            </div>
+            {% else %}
+                <p class="text-muted mt-3 m-0">Подробная информация недоступна.</p>
+            {% endif %}
         </div>
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    </body>
-</html>
+    </div>
+{% endblock content %}
