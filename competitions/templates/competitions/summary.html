@@ -1,47 +1,108 @@
 {% extends "competitions/components/base.html" %}
-{% block title %}Итоги этапа{% endblock title %}
+{% block title %}Итоги: {{ competition.title }}{% endblock title %}
 {% block content %}
-    <div class="mb-3">
-        <button onclick="history.back()" class="btn btn-sm btn-outline-light">← Назад</button>
+    <div class="mb-3 no-print">
+        <a href="{% url 'competition_panel' competition.id %}"
+           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
     </div>
-    <div class="card mb-4">
+    <div class="card mb-4 border-success">
         <div class="card-body py-4">
-            <h2 class="mb-1 text-warning">🏆 Турнирная таблица</h2>
-            <p class="text-muted mb-0">Сводные результаты участников на этапе.</p>
+            <h2 class="mb-1 text-warning">🏆 Итоговая таблица турнира</h2>
+            <p class="text-muted m-0">Соревнование: <strong class="text-light">{{ competition.title }}</strong></p>
         </div>
     </div>
-    <div class="card">
-        <div class="card-body py-4">
-            {% if standings %}
-                <div class="table-responsive">
-                    <table class="table table-borderless align-middle m-0">
-                        <thead>
-                            <tr>
-                                <th>Место</th>
-                                <th>Участник</th>
-                                <th>Базовый результат</th>
-                                <th>Штраф</th>
-                                <th class="text-end">Итоговый счет</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in standings %}
-                                <tr>
-                                    <td class="fw-bold {% if row.place == 1 %}text-warning{% elif row.place == 2 %}text-light{% elif row.place == 3 %}text-success{% else %}text-muted{% endif %}">
-                                        {{ row.place }}
-                                    </td>
-                                    <td class="fw-bold">{{ row.participant.full_name }}</td>
-                                    <td>{{ row.original_value }}</td>
-                                    <td class="text-danger">{{ row.penalty|default:"0.000" }}</td>
-                                    <td class="text-end fw-bold text-success">{{ row.final_score }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="card h-100">
+                <div class="card-body py-4">
+                    <h4 class="mb-3">Личный зачет</h4>
+                    {% if individual_summary %}
+                        <div class="table-responsive">
+                            <table class="table table-borderless align-middle m-0">
+                                <thead>
+                                    <tr>
+                                        <th>Место</th>
+                                        <th>Участник</th>
+                                        <th>Общий штраф</th>
+                                        <th class="text-end">Итоговый счет</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in individual_summary %}
+                                        <tr>
+                                            <td class="fw-bold {% if forloop.counter == 1 and row.has_results %}text-warning{% elif forloop.counter == 2 and row.has_results %}text-light{% elif forloop.counter == 3 and row.has_results %}text-success{% else %}text-muted{% endif %}">
+                                                {% if row.has_results %}
+                                                    {{ forloop.counter }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td class="fw-bold">{{ row.participant.full_name }}</td>
+                                            <td class="text-danger">{{ row.total_penalty|default:"0.000" }}</td>
+                                            <td class="text-end fw-bold text-success">
+                                                {% if row.has_results %}
+                                                    {{ row.final_score|floatformat:3 }}
+                                                {% else %}
+                                                    <span class="text-muted">Нет данных</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted m-0">Нет участников для отображения.</p>
+                    {% endif %}
                 </div>
-            {% else %}
-                <p class="text-muted m-0">Результаты пока не сформированы или не верифицированы Главным судьей.</p>
-            {% endif %}
+            </div>
         </div>
+        {% if competition.has_team %}
+            <div class="col-12">
+                <div class="card h-100">
+                    <div class="card-body py-4">
+                        <h4 class="mb-3">Командный зачет</h4>
+                        {% if team_summary %}
+                            <div class="table-responsive">
+                                <table class="table table-borderless align-middle m-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Место</th>
+                                            <th>Команда</th>
+                                            <th>Активных участников</th>
+                                            <th class="text-end">Командный счет</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in team_summary %}
+                                            <tr>
+                                                <td class="fw-bold {% if forloop.counter == 1 and row.team_score > 0 %}text-warning{% elif forloop.counter == 2 and row.team_score > 0 %}text-light{% elif forloop.counter == 3 and row.team_score > 0 %}text-success{% else %}text-muted{% endif %}">
+                                                    {% if row.team_score > 0 %}
+                                                        {{ forloop.counter }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td class="fw-bold">{{ row.team }}</td>
+                                                <td class="text-light">{{ row.members_count }}</td>
+                                                <td class="text-end fw-bold text-success">
+                                                    {% if row.team_score > 0 %}
+                                                        {{ row.team_score|floatformat:3 }}
+                                                    {% else %}
+                                                        <span class="text-muted">Нет данных</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-muted m-0">Команды пока не сформированы или у них нет результатов.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
     </div>
 {% endblock content %}

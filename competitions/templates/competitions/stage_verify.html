@@ -1,9 +1,9 @@
 {% extends "competitions/components/base.html" %}
 {% block title %}Верификация: {{ stage.name }}{% endblock title %}
 {% block content %}
-    <div class="mb-3">
-        <a href="{% url "chief_stage_list" %}"
-           class="btn btn-sm btn-outline-light">← Назад к списку этапов</a>
+    <div class="mb-3 no-print">
+        <a href="{% url 'chief_stage_list' %}"
+           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
     </div>
     <div class="card mb-4">
         <div class="card-body py-4">
@@ -44,18 +44,20 @@
                                     <td class="text-end">
                                         <div class="d-flex justify-content-end flex-wrap gap-2">
                                             {% if not res.is_verified %}
-                                                <form action="{% url "verify_results_backend" res.id %}"
+                                                <form action="{% url 'verify_results_backend' stage.id %}"
                                                       method="post"
                                                       class="d-inline">
                                                     {% csrf_token %}
-                                                    <input type="hidden" name="action" value="approve">
+                                                    <input type="hidden" name="result_id" value="{{ res.id }}">
+                                                    <input type="hidden" name="action" value="verify">
                                                     <button type="submit" class="btn btn-sm btn-outline-success">Подтвердить</button>
                                                 </form>
                                             {% endif %}
-                                            <form action="{% url "verify_results_backend" res.id %}"
+                                            <form action="{% url 'verify_results_backend' stage.id %}"
                                                   method="post"
                                                   class="d-inline">
                                                 {% csrf_token %}
+                                                <input type="hidden" name="result_id" value="{{ res.id }}">
                                                 <input type="hidden" name="action" value="delete">
                                                 <button type="submit"
                                                         class="btn btn-sm btn-danger"

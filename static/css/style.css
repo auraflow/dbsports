@@ -115,3 +115,94 @@ hr {
         max-width: 100% !important;
     }
 }
+
+.module-stat-block {
+    min-width: 150px;
+}
+
+/* ================= Финальные стили протокола А4 (Мульти-листы) ================= */
+.protocol-body {
+    background-color: var(--gb-bg);
+}
+
+/* Панель с галочками */
+.protocol-export-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+    background-color: var(--gb-bg-hard);
+    padding: 15px 20px;
+    border-radius: 6px;
+    border: 1px solid var(--gb-border);
+    margin-bottom: 20px;
+}
+.protocol-panel-text { color: var(--gb-light); font-weight: bold; }
+.protocol-checkbox-label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--gb-fg);
+    user-select: none;
+    margin: 0;
+}
+.protocol-checkbox-input {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--gb-green);
+}
+.protocol-btn-wrap { margin-left: auto; }
+
+/* Независимый лист А4 на экране (Сопоставим с физическими размерами) */
+.protocol-sheet {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    max-width: 210mm;      /* Ширина формата А4 */
+    width: 100%;
+    min-height: 297mm;     /* Высота формата А4 (выглядит как полный лист) */
+    margin: 0 auto 40px auto;
+    padding: 20mm 15mm;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    box-sizing: border-box;
+    border-radius: 4px;
+    transition: opacity 0.3s ease;
+}
+
+/* Модификатор для подготовки к PDF (снимает экранные ограничения) */
+.protocol-sheet.pdf-mode {
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    min-height: auto !important; /* Разрешаем PDF самому дробить лист по высоте контента */
+}
+
+/* Жесткий разрыв страницы для PDF (чтобы 2-я таблица не лезла на первый лист) */
+.protocol-page-break {
+    page-break-before: always !important;
+    clear: both;
+}
+
+/* Скрытие листов без инлайн-стилей */
+.protocol-hidden {
+    display: none !important;
+}
+
+/* Шапка и таблицы */
+.protocol-doc-header { text-align: center; border-bottom: 2px solid #000000; padding-bottom: 15px; margin-bottom: 25px; }
+.protocol-doc-header h1 { font-size: 24px; margin: 0 0 5px 0; font-weight: bold; color: #000000 !important; }
+.protocol-doc-header h2 { font-size: 20px; margin: 0 0 10px 0; font-weight: normal; color: #000000 !important; }
+.protocol-doc-header p { font-size: 14px; margin: 0; color: #555555 !important; }
+.protocol-section-title { text-align: center; font-size: 18px; text-transform: uppercase; margin: 25px 0 15px 0; font-weight: bold; color: #000000 !important; letter-spacing: 1px; }
+
+.protocol-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; background-color: #ffffff !important;}
+.protocol-table th, .protocol-table td { border: 1px solid #000000 !important; padding: 10px 12px !important; font-size: 14px; text-align: left; color: #000000 !important; background-color: #ffffff !important;}
+.protocol-table th { background-color: #f2f2f2 !important; font-weight: bold; text-align: center; }
+
+.protocol-col-place { width: 12%; text-align: center; }
+.protocol-col-name { width: 48%; }
+.protocol-col-penalty { width: 20%; text-align: center; }
+.protocol-col-score { width: 20%; text-align: center; font-weight: bold; }
+.protocol-signatures { margin-top: 50px; display: flex; justify-content: space-between; font-size: 14px; color: #000000 !important; }
+.protocol-text-center { text-align: center; }

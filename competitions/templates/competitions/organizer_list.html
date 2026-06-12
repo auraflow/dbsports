@@ -2,57 +2,53 @@
 {% block title %}Мои соревнования{% endblock title %}
 {% block content %}
     <div class="mb-3 no-print">
-        <button onclick="history.back()" class="btn btn-sm btn-outline-light">← Назад</button>
+        <a href="{% url 'organizer_competitions' %}"
+           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
     </div>
     <div class="card mb-4">
         <div class="card-body py-4">
-            <h2 class="mb-2">🏆 Панель организатора</h2>
-            <p class="text-muted mb-4">Управление активными соревнованиями</p>
+            <h2 class="mb-2 text-warning">🏆 Панель организатора</h2>
+            <p class="text-muted mb-4">Управление вашими турнирами и системными данными.</p>
             <div class="d-flex flex-wrap gap-2">
-                <a href="{% url "create_competition" %}" class="btn btn-outline-success">➕ Создать новое</a>
-                <a href="{% url "archive_list" %}" class="btn btn-outline-light">📁 Архив соревнований</a>
-                <a href="{% url "audit_log_list" %}" class="btn btn-outline-light">📜 Системный журнал</a>
+                <a href="{% url 'create_competition' %}" class="btn btn-outline-success">➕ Создать соревнование</a>
+                <a href="{% url 'archive_list' %}" class="btn btn-outline-light">📁 Архив соревнований</a>
+                <a href="{% url 'audit_log_list' %}" class="btn btn-outline-light">📜 Системный журнал</a>
             </div>
         </div>
     </div>
     <div class="card">
         <div class="card-body py-4">
             <h3 class="mb-3">Активные турниры</h3>
-            <hr class="mb-4">
+            <p class="text-muted mb-3">Нажмите на строку соревнования, чтобы открыть панель его управления.</p>
             {% if competitions %}
                 <div class="table-responsive">
-                    <table class="table table-borderless align-middle w-100 m-0">
+                    <table class="table table-borderless table-hover align-middle w-100 m-0">
                         <thead>
                             <tr>
                                 <th>Название</th>
                                 <th>Дата начала</th>
                                 <th>Статус</th>
-                                <th>Действия</th>
+                                <th class="text-end">Действия</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for comp in competitions %}
-                                <tr>
+                                <tr onclick="window.location='{% url 'competition_panel' comp.id %}'">
                                     <td class="fw-bold">{{ comp.title }}</td>
                                     <td class="text-muted">{{ comp.start_date|date:"d.m.Y" }}</td>
                                     <td class="text-success fw-bold">{{ comp.status }}</td>
-                                    <td>
-                                        <div class="d-flex flex-wrap gap-2">
-                                            <a href="{% url "manage_stages" comp.id %}"
-                                               class="btn btn-sm btn-outline-light">Этапы</a>
-                                            <a href="{% url "manage_participants" comp.id %}"
-                                               class="btn btn-sm btn-outline-light">Участники</a>
-                                            <form action="{% url "delete_competition" comp.id %}"
-                                                  method="post"
-                                                  class="d-inline">
-                                                {% csrf_token %}
-                                                <button type="submit"
-                                                        class="btn btn-sm btn-danger"
-                                                        onclick="return confirm('Вы уверены, что хотите безвозвратно удалить соревнование и все его данные?');">
-                                                    Удалить
-                                                </button>
-                                            </form>
-                                        </div>
+                                    <td class="text-end">
+                                        <form action="{% url 'delete_competition' comp.id %}"
+                                              method="post"
+                                              class="d-inline"
+                                              onclick="event.stopPropagation();">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-danger"
+                                                    onclick="return confirm('Вы уверены, что хотите безвозвратно удалить соревнование?');">
+                                                Удалить
+                                            </button>
+                                        </form>
                                     </td>
                                 </tr>
                             {% endfor %}

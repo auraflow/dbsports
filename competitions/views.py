@@ -59,9 +59,14 @@ def enter_result(request, stage_id):
         form = ResultForm(request.POST)
         if form.is_valid():
             result = form.save(commit=False)
-            result.stage = stage
-            result.judge = request.user  # Фиксируем автора записи
-            result.save()
+
+            # ЗАЩИТА: Проверяем, нет ли уже результата у этого участника на этом этапе
+            if Result.objects.filter(participant=result.participant, stage=stage).exists():
+                form.add_error('participant', 'Ошибка: Результат для этого участника уже был зафиксирован ранее!')
+            else:
+                result.stage = stage
+                result.judge = request.user
+                result.save()          
 
             AuditLog.objects.create(
                 user=request.user,
@@ -144,8 +149,8 @@ def verify_results_backend(request, stage_id):
             AuditLog.objects.create(
                 user=request.user,
                 competition=res.participant.competition,
-                action="Корректировка Главного судьи",
-                details=f"Главный судья изменил штраф участнику {res.participant.full_name} на этапе «{res.stage.name}» на {new_penalty}. Причина: {reason}."
+                action="Удаление результата",
+                details=f"Главный судья удалил результат участника {res.participant.full_name} на этапе «{res.stage.name}»."
             )
 
         # Теперь перенаправляем обратно в панель верификации этапа
@@ -449,10 +454,12 @@ def manage_team_members(request, team_id):
         if form.is_valid():
             member = form.save(commit=False)
             member.team = team
-            # Проверяем дубликаты, чтобы один и тот же ребенок не попал в команду дважды
-            if not TeamMember.objects.filter(team=team, participant=member.participant).exists():
-                member.save()
 
+            # Проверяем, не состоит ли участник уже в КАКОЙ-ЛИБО команде этого соревнования
+            if TeamMember.objects.filter(team__competition=competition, participant=member.participant).exists():
+                form.add_error('participant', 'Ошибка: Этот участник уже числится в одной из команд данного турнира!')
+            else:
+                member.save()
                 # --- ДОБАВИТЬ ЛОГ ---
                 AuditLog.objects.create(
                     user=request.user,
@@ -460,6 +467,9 @@ def manage_team_members(request, team_id):
                     action="Распределение команд",
                     details=f"Участник {member.participant.full_name} добавлен в состав команды «{team.team_name}»."
                 )
+
+                return redirect('manage_team_members', team_id=team.id)
+
 
             return redirect('manage_team_members', team_id=team.id)
     else:
@@ -620,6 +630,23 @@ def delete_participant(request, part_id):
 @login_required
 @organizer_required
 @require_POST
+def delete_team_member(request, member_id):
+    member = get_object_or_404(TeamMember, pk=member_id)
+    team_id = member.team.id
+    
+    AuditLog.objects.create(
+        user=request.user,
+        competition=member.team.competition,
+        action="Исключение из команды",
+        details=f"Участник {member.participant.full_name} исключен из команды «{member.team.team_name}»."
+    )
+    
+    member.delete()
+    return redirect('manage_team_members', team_id=team_id)
+
+@login_required
+@organizer_required
+@require_POST
 def toggle_archive(request, comp_id):
     """Функция для переноса соревнования в архив"""
     comp = get_object_or_404(Competition, id=comp_id)
@@ -715,3 +742,22 @@ def audit_log_list(request):
     # Берем последние 200 действий
     logs = AuditLog.objects.select_related('user', 'competition').all()[:200] 
     return render(request, 'competitions/audit_log.html', {'logs': logs})
+
+@login_required
+@organizer_required
+def competition_panel(request, comp_id):
+    """Центральный хаб (панель управления) конкретным соревнованием"""
+    competition = get_object_or_404(Competition, pk=comp_id)
+    
+    # Собираем базовую статистику для красивого отображения
+    stats = {
+        'stages': competition.stages.count(),
+        'participants': competition.participants.count(),
+        'teams': competition.teams.count(),
+    }
+    
+    context = {
+        'competition': competition,
+        'stats': stats,
+    }
+    return render(request, 'competitions/competition_panel.html', context)

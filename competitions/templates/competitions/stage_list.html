@@ -2,7 +2,8 @@
 {% block title %}Выбор этапа | АСУ Соревнований{% endblock title %}
 {% block content %}
     <div class="mb-3 no-print">
-        <button onclick="history.back()" class="btn btn-sm btn-outline-light">← Назад</button>
+        <a href="{% url 'organizer_competitions' %}"
+           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
     </div>
     <div class="card mb-4">
         <div class="card-body py-4">

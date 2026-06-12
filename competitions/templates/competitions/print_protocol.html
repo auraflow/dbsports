@@ -1,53 +1,203 @@
 {% extends "competitions/components/base.html" %}
 {% block title %}Официальный протокол: {{ competition.title }}{% endblock title %}
-{% block body_class %}print-theme{% endblock body_class %}
+{% block body_class %}protocol-body{% endblock body_class %}
 {% block content %}
-    <div class="mb-4 no-print">
-        <button onclick="history.back()" class="btn btn-outline-light">← Вернуться назад</button>
-        <button onclick="window.print()" class="btn btn-outline-success">🖨️ Распечатать</button>
+    <div class="no-print">
+        <div class="mb-3 no-print">
+            <a href="{% url 'competition_panel' competition.id %}"
+               class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+        </div>
+        <div class="protocol-export-panel">
+            <span class="protocol-panel-text">Включить в документ:</span>
+            <label class="protocol-checkbox-label">
+                <input type="checkbox"
+                       id="check-ind"
+                       class="protocol-checkbox-input"
+                       checked
+                       onchange="toggleSheets()">
+                Личный зачет
+            </label>
+            {% if competition.has_team %}
+                <label class="protocol-checkbox-label">
+                    <input type="checkbox"
+                           id="check-team"
+                           class="protocol-checkbox-input"
+                           checked
+                           onchange="toggleSheets()">
+                    Командный зачет
+                </label>
+            {% endif %}
+            <div class="protocol-btn-wrap">
+                <button onclick="downloadSmartPDF()" class="btn btn-success fw-bold">📥 Скачать PDF</button>
+            </div>
+        </div>
     </div>
-    <div class="protocol-header">
-        <h1 class="mb-2">ОФИЦИАЛЬНЫЙ ПРОТОКОЛ СОРЕВНОВАНИЙ</h1>
-        <h2 class="mb-3">«{{ competition.title }}»</h2>
-        <p><strong>Дата проведения:</strong> {{ competition.start_date|date:"d.m.Y" }} | <strong>Статус:</strong> {{ competition.status }}</p>
-    </div>
-    {% if standings %}
-        <div class="table-responsive">
-            <table class="table print-table w-100 m-0">
-                <thead>
-                    <tr>
-                        <th>Место</th>
-                        <th>ФИО участника</th>
-                        <th>Команда</th>
-                        <th>Итоговый результат</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in standings %}
+    <div id="protocol-container">
+        <div id="sheet-ind" class="protocol-sheet">
+            <div class="protocol-doc-header">
+                <h1>ОФИЦИАЛЬНЫЙ ПРОТОКОЛ СОРЕВНОВАНИЙ</h1>
+                <h2>«{{ competition.title }}»</h2>
+                <p>Дата: {{ competition.start_date|date:"d.m.Y" }} | Статус: {{ competition.status }}</p>
+            </div>
+            <div class="protocol-section-title">Личный зачет</div>
+            {% if individual_summary %}
+                <table class="protocol-table">
+                    <thead>
                         <tr>
-                            <td class="fw-bold">{{ row.place }}</td>
-                            <td>{{ row.participant.full_name }}</td>
-                            <td>{{ row.team_name|default:"Личный зачет" }}</td>
-                            <td class="fw-bold">{{ row.final_score }}</td>
+                            <th class="protocol-col-place">Место</th>
+                            <th class="protocol-col-name">Участник</th>
+                            <th class="protocol-col-penalty">Штраф</th>
+                            <th class="protocol-col-score">Итог</th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for row in individual_summary %}
+                            <tr>
+                                <td class="protocol-col-place">
+                                    {% if row.has_results %}
+                                        {{ forloop.counter }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="protocol-col-name">{{ row.participant.full_name }}</td>
+                                <td class="protocol-col-penalty">{{ row.total_penalty|default:"0.000" }}</td>
+                                <td class="protocol-col-score">
+                                    {% if row.has_results %}
+                                        {{ row.final_score|floatformat:3 }}
+                                    {% else %}
+                                        Нет
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="protocol-text-center">Результаты личного зачета не сформированы.</p>
+            {% endif %}
+            <div class="protocol-signatures">
+                <div>Главный судья: ______________ / ____________ /</div>
+                <div>Организатор: ______________ / ____________ /</div>
+            </div>
         </div>
-    {% else %}
-        <p class="text-center mt-4"><em>Результаты не сформированы.</em></p>
-    {% endif %}
-    <div class="mt-5 pt-5 d-flex justify-content-between protocol-signatures">
-        <div>
-            <p>Главный судья: ___________________ / _________________ /</p>
-        </div>
-        <div>
-            <p>Организатор: ___________________ / _________________ /</p>
-        </div>
+        {% if competition.has_team %}
+            <div id="sheet-team" class="protocol-sheet">
+                <div class="protocol-doc-header">
+                    <h1>ОФИЦИАЛЬНЫЙ ПРОТОКОЛ СОРЕВНОВАНИЙ</h1>
+                    <h2>«{{ competition.title }}»</h2>
+                    <p>Дата: {{ competition.start_date|date:"d.m.Y" }} | Статус: {{ competition.status }}</p>
+                </div>
+                <div class="protocol-section-title">Командный зачет</div>
+                {% if team_summary %}
+                    <table class="protocol-table">
+                        <thead>
+                            <tr>
+                                <th class="protocol-col-place">Место</th>
+                                <th class="protocol-col-name">Команда</th>
+                                <th class="protocol-col-penalty">Участников</th>
+                                <th class="protocol-col-score">Итог</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in team_summary %}
+                                <tr>
+                                    <td class="protocol-col-place">
+                                        {% if row.team_score > 0 %}
+                                            {{ forloop.counter }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td class="protocol-col-name">{{ row.team }}</td>
+                                    <td class="protocol-col-penalty">{{ row.members_count }}</td>
+                                    <td class="protocol-col-score">
+                                        {% if row.team_score > 0 %}
+                                            {{ row.team_score|floatformat:3 }}
+                                        {% else %}
+                                            Нет
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="protocol-text-center">Командные результаты не сформированы.</p>
+                {% endif %}
+                <div class="protocol-signatures">
+                    <div>Главный судья: ______________ / ____________ /</div>
+                    <div>Организатор: ______________ / ____________ /</div>
+                </div>
+            </div>
+        {% endif %}
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
-        window.onload = function() {
-            window.print();
-        };
+        function toggleSheets() {
+            const checkInd = document.getElementById('check-ind');
+            const checkTeam = document.getElementById('check-team');
+            const sheetInd = document.getElementById('sheet-ind');
+            const sheetTeam = document.getElementById('sheet-team');
+
+            if (sheetInd && checkInd) {
+                checkInd.checked ? sheetInd.classList.remove('protocol-hidden') : sheetInd.classList.add('protocol-hidden');
+            }
+            if (sheetTeam && checkTeam) {
+                checkTeam.checked ? sheetTeam.classList.remove('protocol-hidden') : sheetTeam.classList.add('protocol-hidden');
+            }
+        }
+
+        function downloadSmartPDF() {
+            const container = document.getElementById('protocol-container');
+            const sheets = Array.from(container.querySelectorAll('.protocol-sheet'));
+            const visibleSheets = sheets.filter(sheet => !sheet.classList.contains('protocol-hidden'));
+
+            if (visibleSheets.length === 0) {
+                alert("Пожалуйста, выберите хотя бы один тип зачета для выгрузки!");
+                return;
+            }
+
+            // Подготовка перед генерацией PDF
+            visibleSheets.forEach((sheet, index) => {
+                sheet.classList.add('pdf-mode'); // Снимаем фиксированную высоту и тени
+                if (index > 0) {
+                    // Жесткий разрыв страницы перед вторым листом!
+                    sheet.classList.add('protocol-page-break');
+                }
+            });
+
+            const opt = {
+                margin: 0, // ИСПРАВЛЕНО: было 15, стало 0
+                filename: 'Протокол_{{ competition.title|slugify }}.pdf',
+                image: {
+                    type: 'jpeg',
+                    quality: 0.98
+                },
+                // ИСПРАВЛЕНО: добавили scrollX: 0, scrollY: 0
+                html2canvas: {
+                    scale: 3,
+                    useCORS: true,
+                    scrollX: 0,
+                    scrollY: 0
+                },
+                jsPDF: {
+                    unit: 'mm',
+                    format: 'a4',
+                    orientation: 'portrait'
+                },
+                pagebreak: {
+                    mode: ['css', 'legacy']
+                }
+            };
+
+            // Генерация и возврат стилей
+            html2pdf().set(opt).from(container).save().then(() => {
+                visibleSheets.forEach((sheet) => {
+                    sheet.classList.remove('pdf-mode');
+                    sheet.classList.remove('protocol-page-break');
+                });
+            });
+        }
     </script>
 {% endblock content %}

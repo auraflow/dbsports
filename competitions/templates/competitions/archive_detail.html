@@ -1,8 +1,9 @@
 {% extends "competitions/components/base.html" %}
 {% block title %}Архив: {{ competition.title }}{% endblock title %}
 {% block content %}
-    <div class="mb-3">
-        <a href="{% url "archive_list" %}" class="btn btn-sm btn-outline-light">← Назад к списку архива</a>
+    <div class="mb-3 no-print">
+        <a href="{% url 'archive_list' %}"
+           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
     </div>
     <div class="card mb-4">
         <div class="card-body py-4">

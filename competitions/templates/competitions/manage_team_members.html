@@ -1,9 +1,9 @@
 {% extends "competitions/components/base.html" %}
 {% block title %}Состав: {{ team.team_name }}{% endblock title %}
 {% block content %}
-    <div class="mb-3">
-        <a href="{% url "manage_teams" team.competition.id %}"
-           class="btn btn-sm btn-outline-light">← Назад к списку команд</a>
+    <div class="mb-3 no-print">
+        <a href="{% url 'manage_teams' team.competition.id %}"
+           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
     </div>
     <div class="card mb-4">
         <div class="card-body py-4">
@@ -44,7 +44,7 @@
                                             <td class="text-warning fw-bold">{{ member.participant.bib_number|default:"-" }}</td>
                                             <td class="fw-bold">{{ member.participant.full_name }}</td>
                                             <td class="text-end">
-                                                <form action="{% url "delete_participant" member.id %}"
+                                                <form action="{% url 'delete_team_member' member.id %}"
                                                       method="post"
                                                       class="d-inline">
                                                     {% csrf_token %}

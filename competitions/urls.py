@@ -46,4 +46,8 @@ urlpatterns = [
     path('archive/<int:comp_id>/detail/', views.archive_detail, name='archive_detail'),
 
     path('audit-log/', views.audit_log_list, name='audit_log_list'),
+
+    path('team-member/<int:member_id>/delete/', views.delete_team_member, name='delete_team_member'),
+
+    path('competition/<int:comp_id>/panel/', views.competition_panel, name='competition_panel'),
 ]
