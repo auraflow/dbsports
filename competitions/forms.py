@@ -20,10 +20,15 @@ class ResultForm(forms.ModelForm):
             raise ValidationError("Результат не может быть отрицательным.")
         return value
 
-    # ЗАЩИТА: Проверка значения штрафа
+    # ЗАЩИТА: Проверка значения штрафа и защита от NULL
     def clean_penalty_value(self):
         penalty = self.cleaned_data.get('penalty_value')
-        if penalty is not None and penalty < 0:
+        
+        # Если судья просто оставил поле пустым (ничего не вписал), ставим 0
+        if penalty is None:
+            return 0.000
+            
+        if penalty < 0:
             raise ValidationError("Значение штрафа не может быть отрицательным.")
         return penalty
 
@@ -44,7 +49,7 @@ class CompetitionForm(forms.ModelForm):
             'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Например: Спартакиада 2-й смены'}),
             'start_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'type': forms.Select(attrs={'class': 'form-select'}),
-            'status': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Активно / Завершено'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
             # Делаем красивые свитчи-переключатели
             'has_individual': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_team': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -71,13 +76,14 @@ class ParticipantForm(forms.ModelForm):
             'bib_number': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Стартовый номер'}),
         }
 
-    # ЗАЩИТА: Очистка стартового номера от случайных пробелов
+    # ЗАЩИТА: Очистка стартового номера и защита от ошибки IntegrityError
     def clean_bib_number(self):
-        bib_number = self.cleaned_data.get('bib_number')
-        if bib_number:
-            # Убираем пробелы, чтобы система не считала " 12" и "12" разными номерами
-            return bib_number.strip()
-        return bib_number
+        bib = self.cleaned_data.get('bib_number')
+        # Если номер не ввели (пустая строка), возвращаем строго None (NULL для БД)
+        if not bib or str(bib).strip() == "":
+            return None
+            
+        return str(bib).strip()
 
 class StageForm(forms.ModelForm):
     class Meta:

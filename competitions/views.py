@@ -1,251 +1,638 @@
+import csv
+import openpyxl
+from functools import wraps
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from .models import Stage, Result
-from .forms import ResultForm
-from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed
-from django.db.models import Sum
-from .models import Competition, ResultLog, AuditLog, Participant, Role
-from .models import Team, TeamMember
+from django.http import HttpResponse, HttpResponseForbidden
 from django.contrib.auth import logout
-from .forms import CompetitionForm, ParticipantForm, StageForm, TeamForm, TeamMemberForm
 from django.views.decorators.http import require_POST
-from functools import wraps
+from django.db.models import ProtectedError
+from django.contrib import messages
+
+from .models import (
+    Competition, Stage, Result, Team, TeamMember, 
+    Participant, ResultLog, AuditLog, Role
+)
+from .forms import (
+    CompetitionForm, ParticipantForm, StageForm, 
+    TeamForm, TeamMemberForm, ResultForm
+)
 from .services import calculate_stage_standings
-import csv
 
 
-# Универсальный декоратор для проверки ролей
+# ==========================================
+# 1. СИСТЕМА БЕЗОПАСНОСТИ И ДЕКОРАТОРЫ
+# ==========================================
+
 def role_required(allowed_roles):
+    """Универсальный декоратор проверки прав доступа по ролям"""
     def decorator(view_func):
         @wraps(view_func)
         def _wrapped_view(request, *args, **kwargs):
-            # Суперюзер имеет доступ ко всему
             if request.user.is_superuser:
                 return view_func(request, *args, **kwargs)
-            
-            # ЗАЩИТА ОТ ОШИБКИ 500: проверяем, есть ли вообще роль у пользователя
             if not request.user.role:
                 return HttpResponseForbidden("У вас нет назначенной роли в системе.")
-            
-            # Проверяем, входит ли роль пользователя в список разрешенных
             if request.user.role.role_name not in allowed_roles:
                 return HttpResponseForbidden("У вас нет прав для доступа к этой странице.")
-            
             return view_func(request, *args, **kwargs)
         return _wrapped_view
     return decorator
 
-# Готовые декораторы для конкретных ролей (используем Choices из обновленных моделей)
 organizer_required = role_required([Role.RoleNames.ORGANIZER])
 chief_judge_required = role_required([Role.RoleNames.ORGANIZER, Role.RoleNames.CHIEF_JUDGE])
 
+def archive_lock(view_func):
+    """
+    Умный декоратор: Блокирует доступ по прямым ссылкам ко всем функциям редактирования,
+    если турнир находится в архиве.
+    """
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        comp = None
+        # Динамически определяем, с каким объектом пытается работать пользователь
+        if 'comp_id' in kwargs:
+            comp = get_object_or_404(Competition, pk=kwargs['comp_id'])
+        elif 'stage_id' in kwargs:
+            comp = get_object_or_404(Stage, pk=kwargs['stage_id']).competition
+        elif 'team_id' in kwargs:
+            comp = get_object_or_404(Team, pk=kwargs['team_id']).competition
+        elif 'part_id' in kwargs:
+            comp = get_object_or_404(Participant, pk=kwargs['part_id']).competition
+        elif 'result_id' in kwargs:
+            comp = get_object_or_404(Result, pk=kwargs['result_id']).stage.competition
+        elif 'member_id' in kwargs:
+            comp = get_object_or_404(TeamMember, pk=kwargs['member_id']).team.competition
+
+        # Если турнир найден и он в архиве — выгоняем пользователя
+        if comp and comp.is_archived:
+            messages.error(request, f"🔒 Отказано в доступе: Соревнование «{comp.title}» находится в Архиве. Любые изменения данных заморожены!")
+            return redirect('dashboard')
+            
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
+
+# ==========================================
+# 2. ОБЩИЕ МАРШРУТЫ
+# ==========================================
+
 @login_required
 def dashboard(request):
-    # Главное меню системы
+    """Главное меню системы"""
     return render(request, 'competitions/dashboard.html')
 
 @login_required
+def logout_view(request):
+    logout(request)
+    return redirect('login')
+
+
+# ==========================================
+# 3. БЛОК ПОЛЕВОГО СУДЬИ (ВВОД ДАННЫХ)
+# ==========================================
+
+@login_required
 def stage_list(request):
-    # Экран выбора активного этапа соревнования
-    stages = Stage.objects.filter(competition__is_archived=False).select_related('competition').order_by('competition__title', 'id')
+    """Выбор активного этапа для судейства"""
+    stages = Stage.objects.filter(competition__is_archived=False).select_related('competition', 'type').order_by('competition__title', 'id')
     return render(request, 'competitions/stage_list.html', {'stages': stages})
 
 @login_required
+@archive_lock
 def enter_result(request, stage_id):
-    # Подпроцесс проведения этапа соревнования с оперативным вводом результатов
+    """Интерфейс ввода результатов участникам"""
     stage = get_object_or_404(Stage, pk=stage_id)
     
     if request.method == 'POST':
         form = ResultForm(request.POST)
         if form.is_valid():
             result = form.save(commit=False)
-
-            # ЗАЩИТА: Проверяем, нет ли уже результата у этого участника на этом этапе
+            
             if Result.objects.filter(participant=result.participant, stage=stage).exists():
-                form.add_error('participant', 'Ошибка: Результат для этого участника уже был зафиксирован ранее!')
+                form.add_error('participant', 'Результат для этого участника уже зафиксирован!')
             else:
                 result.stage = stage
                 result.judge = request.user
-                result.save()          
+                result.save()
+                
+                AuditLog.objects.create(
+                    user=request.user,
+                    competition=result.participant.competition,
+                    action="Ввод результата",
+                    details=f"Судья зафиксировал результат для {result.participant.full_name} на этапе «{stage.name}»: {result.value}."
+                )
+                messages.success(request, f"Результат для {result.participant.full_name} успешно записан!")
+                return redirect('enter_result', stage_id=stage.id)
+    else:
+        form = ResultForm()
+        
+        # УМНЫЙ ФИЛЬТР: Получаем ID всех участников, которые УЖЕ пробежали этот этап
+        completed_participant_ids = Result.objects.filter(stage=stage).values_list('participant_id', flat=True)
+        
+        # Передаем в форму только тех, кого НЕТ в списке пробежавших (exclude)
+        form.fields['participant'].queryset = stage.competition.participants.exclude(
+            id__in=completed_participant_ids
+        ).order_by('full_name')
+        
+    recent_results = Result.objects.filter(stage=stage).order_by('-created_at')[:10]
+    return render(request, 'competitions/enter_result.html', {
+        'stage': stage, 'form': form, 'results': recent_results
+    })
 
+@login_required
+@archive_lock
+def edit_result(request, result_id):
+    """Редактирование результата Полевым судьей (только до верификации)"""
+    result = get_object_or_404(Result, pk=result_id)
+    stage_id = result.stage.id
+
+    # ЗАЩИТА БИЗНЕС-ЛОГИКИ: Блокируем редактирование проверенных результатов
+    if result.is_verified:
+        messages.error(request, "Этот результат уже утвержден Главным судьей. Изменения невозможны.")
+        return redirect('enter_result', stage_id=stage_id)
+
+    if request.method == 'POST':
+        form = ResultForm(request.POST, instance=result)
+        if form.is_valid():
+            form.save()
             AuditLog.objects.create(
                 user=request.user,
                 competition=result.participant.competition,
-                action="Ввод результата",
-                details=f"Судья зафиксировал результат для {result.participant.full_name} на этапе «{result.stage.name}»: {result.value} (штраф: {result.penalty_value})."
+                action="Редактирование результата",
+                details=f"Судья изменил результат участника {result.participant.full_name} на этапе «{result.stage.name}»."
             )
-
-            return redirect('enter_result', stage_id=stage.id)
+            messages.success(request, f"Результат участника {result.participant.full_name} успешно исправлен.")
+            return redirect('enter_result', stage_id=stage_id)
     else:
-        form = ResultForm()
-        form.fields['participant'].queryset = stage.competition.participants.all()
-        
-    recent_results = Result.objects.filter(stage=stage).order_by('-created_at')[:5]
-    
-    return render(request, 'competitions/enter_result.html', {
-        'stage': stage,
-        'form': form,
-        'recent_results': recent_results
+        form = ResultForm(instance=result)
+        # УМНЫЙ ФИЛЬТР: Оставляем в выпадающем списке только этого участника, чтобы судья не мог случайно передать результат другому
+        form.fields['participant'].queryset = Participant.objects.filter(id=result.participant.id)
+
+    return render(request, 'competitions/generic_edit.html', {
+        'form': form, 
+        'title': 'Исправление результата'
     })
 
 @login_required
 def stage_leaderboard(request, stage_id):
-    # Экран итогового рейтинга (турнирная таблица этапа)
+    """Просмотр турнирной таблицы конкретного этапа"""
     stage = get_object_or_404(Stage, pk=stage_id)
     standings = calculate_stage_standings(stage.id)
-    
-    return render(request, 'competitions/leaderboard.html', {
-        'stage': stage,
-        'standings': standings
-    })
+    return render(request, 'competitions/leaderboard.html', {'stage': stage, 'standings': standings})
+
 
 # ==========================================
-# БЛОК ГЛАВНОГО СУДЬИ (ВЕРИФИКАЦИЯ)
+# 4. БЛОК ГЛАВНОГО СУДЬИ (ВЕРИФИКАЦИЯ)
 # ==========================================
-
-@login_required
-@chief_judge_required
-@require_POST
-def verify_results_backend(request, stage_id):
-    """
-    Бэкенд-обработчик действий Главного судьи (срабатывает при нажатии кнопок верификации)
-    """
-    stage = get_object_or_404(Stage, pk=stage_id)
-    
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        result_id = request.POST.get('result_id')
-        res = get_object_or_404(Result, pk=result_id)
-
-        if action == 'verify':
-            res.is_verified = True
-            res.save()
-
-            # --- ДОБАВИТЬ ЛОГ ---
-            AuditLog.objects.create(
-                user=request.user,
-                competition=res.participant.competition,
-                action="Верификация результата",
-                details=f"Главный судья подтвердил результат участника {res.participant.full_name} на этапе «{res.stage.name}» без изменений."
-            )
-
-        elif action == 'edit_penalty':
-            new_penalty = request.POST.get('new_penalty')
-            reason = request.POST.get('reason', 'Корректировка Главным судьей')
-            
-            # Фиксация в журнале аудита (Таблица 17 диплома)
-            ResultLog.objects.create(
-                result=res,
-                changed_by=request.user,
-                old_value=res.penalty_value,
-                new_value=new_penalty,
-                comment=reason
-            )
-            res.penalty_value = new_penalty
-            res.is_verified = True # Автоматически подтверждаем при исправлении
-            res.save()
-
-            # --- ДОБАВЛЕНО: Запись в общий Журнал аудита ---
-            AuditLog.objects.create(
-                user=request.user,
-                competition=res.participant.competition,
-                action="Удаление результата",
-                details=f"Главный судья удалил результат участника {res.participant.full_name} на этапе «{res.stage.name}»."
-            )
-
-        # Теперь перенаправляем обратно в панель верификации этапа
-        return redirect('stage_verify_panel', stage_id=stage.id)
-
 
 @login_required
 @chief_judge_required
 def chief_stage_list(request):
-    """
-    Экран Главного судьи: список всех этапов для контроля данных
-    """
-    user_role = request.user.role.role_name if request.user.role else ''
-    if user_role not in ['Главный судья', 'Организатор'] and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+    """Список этапов для проверки Главным судьей"""
     stages = Stage.objects.filter(competition__is_archived=False).select_related('competition').order_by('competition__title', 'id')
     return render(request, 'competitions/chief_stage_list.html', {'stages': stages})
 
+@login_required
+@chief_judge_required
+@archive_lock
+def stage_verify_panel(request, stage_id):
+    """Панель проверки и утверждения результатов этапа"""
+    stage = get_object_or_404(Stage, pk=stage_id)
+    results = Result.objects.filter(stage=stage).select_related('participant', 'judge').order_by('is_verified', '-created_at')
+    return render(request, 'competitions/stage_verify.html', {'stage': stage, 'results': results})
 
 @login_required
 @chief_judge_required
-def stage_verify_panel(request, stage_id):
-    """
-    Интерактивная панель верификации результатов конкретного этапа
-    """
-    user_role = request.user.role.role_name if request.user.role else ''
-    if user_role not in ['Главный судья', 'Организатор'] and not request.user.is_superuser:
-        return redirect('dashboard')
-        
+@require_POST
+@archive_lock
+def verify_results_backend(request, stage_id):
+    """Обработчик действий: Верификация, Штраф, Удаление, Отмена верификации"""
     stage = get_object_or_404(Stage, pk=stage_id)
-    # Загружаем результаты, сначала показываем невыверенные (is_verified=False)
-    results = Result.objects.filter(stage=stage).select_related('participant', 'judge').order_by('is_verified', '-created_at')
-    
-    return render(request, 'competitions/stage_verify.html', {
-        'stage': stage,
-        'results': results
-    })
+    action = request.POST.get('action')
+    result_id = request.POST.get('result_id')
+    res = get_object_or_404(Result, pk=result_id)
+
+    if action == 'verify':
+        res.is_verified = True
+        res.save()
+        AuditLog.objects.create(
+            user=request.user, competition=res.participant.competition,
+            action="Верификация результата",
+            details=f"Главный судья подтвердил результат участника {res.participant.full_name} на этапе «{res.stage.name}»."
+        )
+        messages.success(request, f"Результат участника {res.participant.full_name} успешно подтвержден.")
+
+    elif action == 'unverify':
+        res.is_verified = False
+        res.save()
+        AuditLog.objects.create(
+            user=request.user, competition=res.participant.competition,
+            action="Отмена верификации",
+            details=f"Главный судья снял верификацию с результата участника {res.participant.full_name} на этапе «{res.stage.name}»."
+        )
+        messages.warning(request, f"Верификация снята. Результат {res.participant.full_name} снова доступен для редактирования судьями.")
+
+    elif action == 'edit_penalty':
+        new_penalty_raw = request.POST.get('new_penalty', '0')
+        reason = request.POST.get('reason', 'Корректировка Главным судьей')
+        
+        # ЗАЩИТА: Проверяем, что судья ввел именно число, заменяем запятые на точки
+        try:
+            new_penalty = abs(float(new_penalty_raw.replace(',', '.')))
+        except ValueError:
+            messages.error(request, "Ошибка: Неверный формат штрафа. Введите число.")
+            return redirect('stage_verify_panel', stage_id=stage.id)
+        
+        ResultLog.objects.create(
+            result=res, changed_by=request.user,
+            old_value=res.penalty_value, new_value=new_penalty, comment=reason
+        )
+        res.penalty_value = new_penalty
+        res.is_verified = True # Автоматически подтверждаем при изменении
+        res.save()
+        
+        AuditLog.objects.create(
+            user=request.user, competition=res.participant.competition,
+            action="Корректировка результата",
+            details=f"Изменен штраф участнику {res.participant.full_name} на {new_penalty}. Причина: {reason}."
+        )
+        messages.success(request, f"Штраф участника {res.participant.full_name} изменен, результат утвержден.")
+
+    elif action == 'delete':
+        AuditLog.objects.create(
+            user=request.user, competition=res.participant.competition,
+            action="Удаление результата",
+            details=f"Главный судья удалил результат участника {res.participant.full_name} на этапе «{res.stage.name}»."
+        )
+        res.delete()
+        messages.success(request, "Результат был безвозвратно удален.")
+
+    return redirect('stage_verify_panel', stage_id=stage.id)
+
 
 # ==========================================
-# БЛОК ОРГАНИЗАТОРА (ОТЧЕТНОСТЬ И ВЫГРУЗКА)
+# 5. БЛОК ОРГАНИЗАТОРА (УПРАВЛЕНИЕ)
 # ==========================================
 
 @login_required
 @organizer_required
-def competition_summary(request, comp_id):
-    """
-    Сводный отчет по соревнованию (Веб-дашборд).
-    """
+def organizer_competitions(request):
+    competitions = Competition.objects.filter(is_archived=False).order_by('-start_date')
+    return render(request, 'competitions/organizer_list.html', {'competitions': competitions})
+
+@login_required
+@organizer_required
+@archive_lock
+def competition_panel(request, comp_id):
+    """Хаб управления турниром"""
     competition = get_object_or_404(Competition, pk=comp_id)
+    stats = {
+        'stages': competition.stages.count(),
+        'participants': competition.participants.count(),
+        'teams': competition.teams.count(),
+    }
+    return render(request, 'competitions/competition_panel.html', {'competition': competition, 'stats': stats})
+
+@login_required
+@organizer_required
+def create_competition(request):
+    if request.method == 'POST':
+        form = CompetitionForm(request.POST)
+        if form.is_valid():
+            comp = form.save(commit=False)
+            comp.created_by = request.user
+            comp.save()
+            AuditLog.objects.create(
+                user=request.user, competition=comp, action="Создание соревнования",
+                details=f"Создано соревнование: «{comp.title}»."
+            )
+            return redirect('organizer_competitions')
+    else:
+        form = CompetitionForm()
+    return render(request, 'competitions/create_competition.html', {'form': form, 'edit_mode': False})
+
+@login_required
+@organizer_required
+@archive_lock
+def edit_competition(request, comp_id):
+    """ИСПРАВЛЕНИЕ: Функция для редактирования настроек турнира"""
+    comp = get_object_or_404(Competition, pk=comp_id)
+    if request.method == 'POST':
+        form = CompetitionForm(request.POST, instance=comp)
+        if form.is_valid():
+            form.save()
+            AuditLog.objects.create(
+                user=request.user, competition=comp, action="Редактирование турнира",
+                details=f"Организатор обновил параметры турнира «{comp.title}»."
+            )
+            return redirect('competition_panel', comp_id=comp.id)
+    else:
+        form = CompetitionForm(instance=comp)
+    return render(request, 'competitions/create_competition.html', {'form': form, 'edit_mode': True})
+
+@login_required
+@organizer_required
+@archive_lock
+def manage_stages(request, comp_id):
+    competition = get_object_or_404(Competition, pk=comp_id)
+    if request.method == 'POST':
+        form = StageForm(request.POST)
+        if form.is_valid():
+            stage = form.save(commit=False)
+            stage.competition = competition
+            stage.save()
+            AuditLog.objects.create(
+                user=request.user, competition=competition, action="Создание этапа",
+                details=f"Добавлен этап: «{stage.name}»."
+            )
+            return redirect('manage_stages', comp_id=competition.id)
+    else:
+        form = StageForm()
+    stages = competition.stages.all().select_related('type')
+    return render(request, 'competitions/manage_stages.html', {'competition': competition, 'form': form, 'stages': stages})
+
+@login_required
+@organizer_required
+@archive_lock
+def manage_participants(request, comp_id):
+    competition = get_object_or_404(Competition, pk=comp_id)
+    if request.method == 'POST':
+        form = ParticipantForm(request.POST)
+        if form.is_valid():
+            participant = form.save(commit=False)
+            participant.competition = competition
+            participant.save()
+            AuditLog.objects.create(
+                user=request.user, competition=competition, action="Добавление участника",
+                details=f"Зарегистрирован: {participant.full_name} (Бейдж: {participant.bib_number})."
+            )
+            return redirect('manage_participants', comp_id=competition.id)
+    else:
+        form = ParticipantForm()
+    participants = competition.participants.all().order_by('bib_number')
+    return render(request, 'competitions/manage_participants.html', {'competition': competition, 'form': form, 'participants': participants})
+
+@login_required
+@organizer_required
+@archive_lock
+def manage_teams(request, comp_id):
+    competition = get_object_or_404(Competition, pk=comp_id)
+    if request.method == 'POST':
+        form = TeamForm(request.POST)
+        if form.is_valid():
+            team = form.save(commit=False)
+            team.competition = competition
+            team.save()
+            AuditLog.objects.create(user=request.user, competition=competition, action="Создание команды", details=f"Создана команда: «{team.team_name}».")
+            return redirect('manage_teams', comp_id=competition.id)
+    else:
+        form = TeamForm()
+    teams = competition.teams.all()
+    return render(request, 'competitions/manage_teams.html', {'competition': competition, 'form': form, 'teams': teams})
+
+@login_required
+@organizer_required
+@archive_lock
+def manage_team_members(request, team_id):
+    team = get_object_or_404(Team, pk=team_id)
+    competition = team.competition
     
+    if request.method == 'POST':
+        form = TeamMemberForm(request.POST)
+        if form.is_valid():
+            member = form.save(commit=False)
+            member.team = team
             
-    from django.db.models import Sum
+            # На всякий случай оставляем защиту бэкенда
+            if TeamMember.objects.filter(team__competition=competition, participant=member.participant).exists():
+                messages.error(request, 'Ошибка: Этот участник уже состоит в одной из команд!')
+            else:
+                member.save()
+                AuditLog.objects.create(
+                    user=request.user, competition=competition, 
+                    action="Состав команды", 
+                    details=f"{member.participant.full_name} добавлен в команду «{team.team_name}»."
+                )
+                messages.success(request, f"Участник {member.participant.full_name} успешно зачислен в состав.")
+                return redirect('manage_team_members', team_id=team.id)
+    else:
+        form = TeamMemberForm()
+        
+        # УМНЫЙ ФИЛЬТР: Получаем ID всех участников, которые УЖЕ состоят в ЛЮБЫХ командах этого турнира
+        assigned_participants = TeamMember.objects.filter(
+            team__competition=competition
+        ).values_list('participant_id', flat=True)
+        
+        # Отдаем в форму только "свободных" спортсменов
+        form.fields['participant'].queryset = competition.participants.exclude(
+            id__in=assigned_participants
+        ).order_by('full_name')
+        
+    members = team.members.select_related('participant').all()
+    return render(request, 'competitions/manage_team_members.html', {
+        'team': team, 
+        'competition': competition, 
+        'form': form, 
+        'members': members
+    })
+
+@login_required
+@organizer_required
+@archive_lock
+def edit_participant(request, part_id):
+    participant = get_object_or_404(Participant, pk=part_id)
+    if request.method == 'POST':
+        form = ParticipantForm(request.POST, instance=participant)
+        if form.is_valid():
+            part = form.save(commit=False)
+            
+            # ЗАЩИТА ОТ 500: Проверяем на дубликат, ИСКЛЮЧАЯ самого себя (exclude)
+            if part.bib_number and Participant.objects.exclude(pk=part.pk).filter(competition=participant.competition, bib_number=part.bib_number).exists():
+                messages.error(request, f"Ошибка: Стартовый номер «{part.bib_number}» уже занят другим спортсменом!")
+            else:
+                part.save()
+                AuditLog.objects.create(user=request.user, competition=participant.competition, action="Редактирование", details=f"Изменены данные участника: {part.full_name}")
+                messages.success(request, f"Данные спортсмена {part.full_name} успешно обновлены.")
+                return redirect('manage_participants', comp_id=participant.competition.id)
+    else:
+        form = ParticipantForm(instance=participant)
+    return render(request, 'competitions/generic_edit.html', {'form': form, 'title': 'Редактирование участника'})
+
+@login_required
+@organizer_required
+@archive_lock
+def edit_stage(request, stage_id):
+    stage = get_object_or_404(Stage, pk=stage_id)
+    if request.method == 'POST':
+        form = StageForm(request.POST, instance=stage)
+        if form.is_valid():
+            form.save()
+            AuditLog.objects.create(user=request.user, competition=stage.competition, action="Редактирование", details=f"Изменено название этапа: {stage.name}")
+            messages.success(request, f"Этап {stage.name} успешно обновлен.")
+            return redirect('manage_stages', comp_id=stage.competition.id)
+    else:
+        form = StageForm(instance=stage)
+    return render(request, 'competitions/generic_edit.html', {'form': form, 'title': 'Редактирование этапа'})
+
+@login_required
+@organizer_required
+@archive_lock
+def edit_team(request, team_id):
+    team = get_object_or_404(Team, pk=team_id)
+    if request.method == 'POST':
+        form = TeamForm(request.POST, instance=team)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Команда {team.team_name} успешно обновлена.")
+            return redirect('manage_teams', comp_id=team.competition.id)
+    else:
+        form = TeamForm(instance=team)
+    return render(request, 'competitions/generic_edit.html', {'form': form, 'title': 'Редактирование команды'})
+
+
+# ==========================================
+# 6. УДАЛЕНИЕ СТРУКТУР (DELETE ACTIONS)
+# ==========================================
+
+@login_required
+@organizer_required
+@require_POST
+@archive_lock
+def delete_competition(request, comp_id):
+    comp = get_object_or_404(Competition, pk=comp_id)
+    try:
+        comp_title = comp.title
+        comp.delete()
+        AuditLog.objects.create(
+            user=request.user, 
+            competition=None, 
+            action="Удаление соревнования", 
+            details=f"СИСТЕМНОЕ УДАЛЕНИЕ: «{comp_title}»."
+        )
+        messages.success(request, f"Соревнование «{comp_title}» и все пустые этапы успешно удалены.")
+    except ProtectedError:
+        messages.error(
+            request, 
+            f"Невозможно удалить турнир «{comp.title}», так как внутри него есть этапы с уже зафиксированными результатами! Сначала удалите результаты, либо просто перенесите турнир в Архив."
+        )
+        
+    return redirect('organizer_competitions')
+
+@login_required
+@organizer_required
+@require_POST
+@archive_lock
+def delete_stage(request, stage_id):
+    stage = get_object_or_404(Stage, pk=stage_id)
+    comp_id = stage.competition.id
+    try:
+        stage_name = stage.name
+        stage.delete()
+        AuditLog.objects.create(user=request.user, competition=stage.competition, action="Удаление этапа", details=f"Удален этап «{stage_name}».")
+        messages.success(request, f"Этап «{stage_name}» успешно удален.")
+    except ProtectedError:
+        messages.error(request, f"Невозможно удалить этап «{stage.name}», так как в нем уже зафиксированы результаты участников!")
     
+    return redirect('manage_stages', comp_id=comp_id)
+
+
+@login_required
+@organizer_required
+@require_POST
+@archive_lock
+def delete_participant(request, part_id):
+    participant = get_object_or_404(Participant, pk=part_id)
+    comp_id = participant.competition.id
+    try:
+        part_name = participant.full_name
+        participant.delete()
+        AuditLog.objects.create(user=request.user, competition=participant.competition, action="Удаление участника", details=f"Удален {part_name}.")
+        messages.success(request, f"Участник {part_name} успешно удален из базы.")
+    except ProtectedError:
+        messages.error(request, f"Невозможно удалить участника {participant.full_name}, так как он уже имеет зафиксированные результаты!")
+    
+    return redirect('manage_participants', comp_id=comp_id)
+
+
+@login_required
+@organizer_required
+@require_POST
+@archive_lock
+def delete_team(request, team_id):
+    team = get_object_or_404(Team, pk=team_id)
+    comp_id = team.competition.id
+    try:
+        team_name = team.team_name
+        team.delete()
+        AuditLog.objects.create(user=request.user, competition=team.competition, action="Удаление команды", details=f"Удалена команда «{team_name}».")
+        messages.success(request, f"Команда «{team_name}» успешно удалена.")
+    except ProtectedError:
+        # У команд обычно CASCADE с участниками, но на всякий случай защищаем
+        messages.error(request, f"Невозможно удалить команду «{team.team_name}», так как с ней связаны другие данные!")
+        
+    return redirect('manage_teams', comp_id=comp_id)
+
+@login_required
+@organizer_required
+@require_POST
+@archive_lock
+def delete_team_member(request, member_id):
+    member = get_object_or_404(TeamMember, pk=member_id)
+    team_id = member.team.id
+    AuditLog.objects.create(user=request.user, competition=member.team.competition, action="Исключение из команды", details=f"{member.participant.full_name} исключен из «{member.team.team_name}».")
+    member.delete()
+    return redirect('manage_team_members', team_id=team_id)
+
+
+# ==========================================
+# 7. СВОДНЫЕ ОТЧЕТЫ, EXCEL, PDF И АРХИВЫ
+# ==========================================
+
+def get_smart_summary(competition):
+    """
+    ИСПРАВЛЕНИЕ МАТЕМАТИКИ: Суммируем МЕСТА, занятые спортсменом на этапах.
+    Чем меньше сумма мест, тем выше спортсмен в турнирной таблице.
+    """
     individual_summary = []
     team_summary = []
     
-    # === 1. РАСЧЕТ ЛИЧНОГО ЗАЧЕТА ===
-    if competition.has_individual or competition.has_team:
-        participants = competition.participants.all()
-        for p in participants:
-            verified_results = Result.objects.filter(participant=p, stage__competition=competition, is_verified=True)
-            
-            t_time = verified_results.aggregate(Sum('value'))['value__sum'] or 0
-            t_pen = verified_results.aggregate(Sum('penalty_value'))['penalty_value__sum'] or 0
-            
-            # Флаг: проверяем, выступал ли человек вообще
-            has_results = verified_results.exists()
-            
-            # Добавляем в таблицу АБСОЛЮТНО ВСЕХ участников
-            individual_summary.append({
-                'participant': p,
-                'total_penalty': t_pen,
-                'final_score': float(t_time) + float(t_pen),
-                'has_results': has_results
-            })
-                
-        # УМНАЯ СОРТИРОВКА ЛИЧНОГО ЗАЧЕТА:
-        # Условие `not x['has_results']` вернет True для пустых спортсменов -> они улетят в самый конец таблицы.
-        # Остальные отсортируются по финальному результату (по возрастанию).
-        individual_summary.sort(key=lambda x: (not x['has_results'], x['final_score']))
+    participants = competition.participants.all()
+    stages = competition.stages.all()
+    
+    # ИСПРАВЛЕНИЕ: Вернули ключ 'final_score', который ждут твои HTML-шаблоны
+    p_scores = {
+        p.id: {
+            'participant': p, 
+            'final_score': 0,  # <-- Раньше тут было 'total_places'
+            'total_penalty': 0, 
+            'has_results': False
+        } for p in participants
+    }
+    
+    # 1. Расчет личного зачета по сумме занятых мест
+    for stage in stages:
+        standings = calculate_stage_standings(stage.id)
+        for row in standings:
+            p_id = row['participant'].id
+            p_scores[p_id]['final_score'] += row['place'] # Плюсуем занятое место
+            p_scores[p_id]['total_penalty'] += row['penalty']
+            p_scores[p_id]['has_results'] = True
 
-    # === 2. РАСЧЕТ КОМАНДНОГО ЗАЧЕТА ===
+    individual_summary = list(p_scores.values())
+    # Сортировка: сначала те, у кого есть результаты, затем по наименьшей сумме мест
+    individual_summary.sort(key=lambda x: (not x['has_results'], x['final_score']))
+
+    # 2. Расчет командного зачета
     if competition.has_team:
         teams = competition.teams.prefetch_related('members__participant').all()
         for team in teams:
             team_score = 0
             members_count = 0
             for member in team.members.all():
-                p = member.participant
-                p_result = next((item for item in individual_summary if item['participant'] == p), None)
-                
-                # Добавляем баллы отряду, ТОЛЬКО если у спортсмена есть реальные результаты
-                if p_result and p_result['has_results']:
-                    team_score += p_result['final_score']
+                p_data = p_scores.get(member.participant.id)
+                if p_data and p_data['has_results']:
+                    team_score += p_data['final_score']
                     members_count += 1
                     
             team_summary.append({
@@ -253,10 +640,18 @@ def competition_summary(request, comp_id):
                 'members_count': members_count,
                 'team_score': team_score
             })
-            
-        # УМНАЯ СОРТИРОВКА ОТРЯДОВ:
+        # Сортировка команд по наименьшей сумме мест участников
         team_summary.sort(key=lambda x: (x['members_count'] == 0, x['team_score'] == 0, x['team_score']))
 
+    return individual_summary, team_summary
+
+
+@login_required
+@organizer_required
+def competition_summary(request, comp_id):
+    competition = get_object_or_404(Competition, pk=comp_id)
+    individual_summary, team_summary = get_smart_summary(competition)
+    
     return render(request, 'competitions/summary.html', {
         'competition': competition,
         'individual_summary': individual_summary,
@@ -265,289 +660,9 @@ def competition_summary(request, comp_id):
 
 @login_required
 @organizer_required
-def export_csv_report(request, comp_id):
-    """
-    Бэкенд-генерация файла отчета (CSV - открывается в Excel).
-    Выполняет требование ФТ-07 из диплома.
-    """
-    competition = get_object_or_404(Competition, pk=comp_id)
-    
-    # Создаем HTTP-ответ с типом файла CSV
-    response = HttpResponse(content_type='text/csv; charset=utf-8-sig') # utf-8-sig для русского языка в Excel
-    response['Content-Disposition'] = f'attachment; filename="Report_{competition.id}.csv"'
-    
-    writer = csv.writer(response, delimiter=';')
-    writer.writerow(['Соревнование:', competition.title, 'Дата:', competition.start_date])
-    writer.writerow(['']) # Пустая строка
-    writer.writerow(['Место', 'Стартовый номер', 'ФИО Участника', 'Основной показатель', 'Сумма штрафов', 'Итоговый результат'])
-    
-    # Заново собираем сводку (в идеале вынести этот расчет в services.py, чтобы не дублировать код)
-    participants = competition.participants.all()
-    summary = []
-    for p in participants:
-        t_val = Result.objects.filter(participant=p, stage__competition=competition, is_verified=True).aggregate(Sum('value'))['value__sum'] or 0
-        t_pen = Result.objects.filter(participant=p, stage__competition=competition, is_verified=True).aggregate(Sum('penalty_value'))['penalty_value__sum'] or 0
-        summary.append({'name': p.full_name, 'bib': p.bib_number, 'val': t_val, 'pen': t_pen, 'final': float(t_val) + float(t_pen)})
-        
-    summary.sort(key=lambda x: x['final'])
-    
-    for index, row in enumerate(summary):
-        writer.writerow([index + 1, row['bib'], row['name'], row['val'], row['pen'], row['final']])
-        
-    return response
-
-@login_required
-def logout_view(request):
-    logout(request)
-    return redirect('login') # Перенаправляем на наш новый маршрут входа
-
-@login_required
-@organizer_required
-def organizer_competitions(request):
-    # Страница со списком всех соревнований для Организатора
-        
-    competitions = Competition.objects.filter(is_archived=False).order_by('-start_date')
-    return render(request, 'competitions/organizer_list.html', {'competitions': competitions})
-
-@login_required
-@organizer_required
-def create_competition(request):
-    # Форма создания нового соревнования (ФТ-01)
-            
-    if request.method == 'POST':
-        form = CompetitionForm(request.POST)
-        if form.is_valid():
-            competition = form.save(commit=False)
-            competition.created_by = request.user  # Привязываем создателя
-            competition.save()
-
-            # --- ДОБАВИТЬ ЛОГ ---
-            AuditLog.objects.create(
-                user=request.user,
-                competition=competition,
-                action="Создание соревнования",
-                details=f"Организатор создал новое соревнование: «{competition.title}»."
-            )
-
-            return redirect('organizer_competitions')
-    else:
-        form = CompetitionForm()
-    return render(request, 'competitions/create_competition.html', {'form': form})
-
-@login_required
-@organizer_required
-def manage_participants(request, comp_id):
-    # Управление участниками конкретного соревнования (ФТ-02)
-    competition = get_object_or_404(Competition, pk=comp_id)
-    
-            
-    if request.method == 'POST':
-        form = ParticipantForm(request.POST)
-        if form.is_valid():
-            participant = form.save(commit=False)
-            participant.competition = competition # Привязываем к текущему соревнованию
-            participant.save()
-
-            # --- ДОБАВИТЬ ЛОГ ---
-            AuditLog.objects.create(
-                user=request.user,
-                competition=competition,
-                action="Добавление участника",
-                details=f"Зарегистрирован участник: {participant.full_name} (Бейдж: {participant.bib_number})."
-            )
-
-            return redirect('manage_participants', comp_id=competition.id)
-    else:
-        form = ParticipantForm()
-        
-    participants = competition.participants.all().order_by('bib_number')
-    return render(request, 'competitions/manage_participants.html', {
-        'competition': competition,
-        'form': form,
-        'participants': participants
-    })
-
-@login_required
-@organizer_required
-def manage_stages(request, comp_id):
-    """
-    Управление этапами конкретного соревнования (ФТ-03)
-    """
-    competition = get_object_or_404(Competition, pk=comp_id)
-    
-            
-    if request.method == 'POST':
-        form = StageForm(request.POST)
-        if form.is_valid():
-            stage = form.save(commit=False)
-            stage.competition = competition # Автоматически привязываем к текущему соревнованию
-            stage.save()
-
-            # --- ДОБАВИТЬ ЛОГ ---
-            AuditLog.objects.create(
-                user=request.user,
-                competition=competition,
-                action="Создание этапа",
-                details=f"Добавлен новый этап соревнований: «{stage.name}»."
-            )
-
-            return redirect('manage_stages', comp_id=competition.id)
-    else:
-        form = StageForm()
-        
-    # Извлекаем все этапы этого соревнования вместе с типами замеров
-    stages = competition.stages.all().select_related('type')
-    
-    return render(request, 'competitions/manage_stages.html', {
-        'competition': competition,
-        'form': form,
-        'stages': stages
-    })
-
-@login_required
-@organizer_required
-def manage_teams(request, comp_id):
-    """
-    Управление командами соревнования (ФТ-02)
-    """
-    competition = get_object_or_404(Competition, pk=comp_id)
-    
-           
-    if request.method == 'POST':
-        form = TeamForm(request.POST)
-        if form.is_valid():
-            team = form.save(commit=False)
-            team.competition = competition
-            team.save()
-
-            # --- ДОБАВИТЬ ЛОГ ---
-            AuditLog.objects.create(
-                user=request.user,
-                competition=competition,
-                action="Создание команды",
-                details=f"Создана новая команда (отряд): «{team.team_name}»."
-            )
-
-            return redirect('manage_teams', comp_id=competition.id)
-    else:
-        form = TeamForm()
-        
-    teams = competition.teams.all()
-    return render(request, 'competitions/manage_teams.html', {
-        'competition': competition,
-        'form': form,
-        'teams': teams
-    })
-
-@login_required
-@organizer_required
-def manage_team_members(request, team_id):
-    """
-    Распределение участников по командам/отрядам (Состав команд)
-    """
-    team = get_object_or_404(Team, pk=team_id)
-    competition = team.competition
-    
-           
-    if request.method == 'POST':
-        form = TeamMemberForm(request.POST)
-        if form.is_valid():
-            member = form.save(commit=False)
-            member.team = team
-
-            # Проверяем, не состоит ли участник уже в КАКОЙ-ЛИБО команде этого соревнования
-            if TeamMember.objects.filter(team__competition=competition, participant=member.participant).exists():
-                form.add_error('participant', 'Ошибка: Этот участник уже числится в одной из команд данного турнира!')
-            else:
-                member.save()
-                # --- ДОБАВИТЬ ЛОГ ---
-                AuditLog.objects.create(
-                    user=request.user,
-                    competition=competition,
-                    action="Распределение команд",
-                    details=f"Участник {member.participant.full_name} добавлен в состав команды «{team.team_name}»."
-                )
-
-                return redirect('manage_team_members', team_id=team.id)
-
-
-            return redirect('manage_team_members', team_id=team.id)
-    else:
-        form = TeamMemberForm()
-        # Показываем в выпадающем списке только тех участников, которые заявлены на это соревнование
-        form.fields['participant'].queryset = competition.participants.all()
-        
-    members = team.members.select_related('participant').all()
-    return render(request, 'competitions/manage_team_members.html', {
-        'team': team,
-        'competition': competition,
-        'form': form,
-        'members': members
-    })
-
-@login_required
-@organizer_required
 def print_protocol(request, comp_id):
-    """
-    Генерация официальной печатной формы (PDF)
-    Синхронизировано с логикой Дашборда + Умная сортировка нулей
-    """
     competition = get_object_or_404(Competition, pk=comp_id)
-    
-           
-    from django.db.models import Sum
-    
-    individual_summary = []
-    team_summary = []
-    
-    # === 1. РАСЧЕТ ЛИЧНОГО ЗАЧЕТА ===
-    if competition.has_individual or competition.has_team:
-        participants = competition.participants.all()
-        for p in participants:
-            verified_results = Result.objects.filter(participant=p, stage__competition=competition, is_verified=True)
-            
-            t_time = verified_results.aggregate(Sum('value'))['value__sum'] or 0
-            t_pen = verified_results.aggregate(Sum('penalty_value'))['penalty_value__sum'] or 0
-            
-            # Флаг: проверяем, выступал ли человек вообще
-            has_results = verified_results.exists()
-            
-            # Добавляем в таблицу АБСОЛЮТНО ВСЕХ участников
-            individual_summary.append({
-                'participant': p,
-                'total_penalty': t_pen,
-                'final_score': float(t_time) + float(t_pen),
-                'has_results': has_results
-            })
-                
-        # УМНАЯ СОРТИРОВКА ЛИЧНОГО ЗАЧЕТА:
-        # Условие `not x['has_results']` вернет True для пустых спортсменов -> они улетят в самый конец таблицы.
-        # Остальные отсортируются по финальному результату (по возрастанию).
-        individual_summary.sort(key=lambda x: (not x['has_results'], x['final_score']))
-
-    # === 2. РАСЧЕТ КОМАНДНОГО ЗАЧЕТА ===
-    if competition.has_team:
-        teams = competition.teams.prefetch_related('members__participant').all()
-        for team in teams:
-            team_score = 0
-            members_count = 0
-            for member in team.members.all():
-                p = member.participant
-                p_result = next((item for item in individual_summary if item['participant'] == p), None)
-                
-                # Добавляем баллы отряду, ТОЛЬКО если у спортсмена есть реальные результаты
-                if p_result and p_result['has_results']:
-                    team_score += p_result['final_score']
-                    members_count += 1
-                    
-            team_summary.append({
-                'team': team.team_name,
-                'members_count': members_count,
-                'team_score': team_score
-            })
-            
-        # УМНАЯ СОРТИРОВКА ОТРЯДОВ:
-        team_summary.sort(key=lambda x: (x['members_count'] == 0, x['team_score'] == 0, x['team_score']))
+    individual_summary, team_summary = get_smart_summary(competition)
     
     return render(request, 'competitions/print_protocol.html', {
         'competition': competition,
@@ -557,207 +672,111 @@ def print_protocol(request, comp_id):
 
 @login_required
 @organizer_required
-@require_POST
-def delete_competition(request, comp_id):
-    comp = get_object_or_404(Competition, pk=comp_id)
-
-    # --- ДОБАВИТЬ ЛОГ (ДО DELETE) ---
-    # Передаем competition=None, чтобы лог остался жить после удаления соревнования
-    AuditLog.objects.create(
-        user=request.user,
-        competition=None, 
-        action="Удаление соревнования",
-        details=f"СИСТЕМНОЕ УДАЛЕНИЕ: Соревнование «{comp.title}» было полностью удалено из базы данных вместе со всеми связанными этапами и результатами."
-    )
-
-    comp.delete()
-    return redirect('organizer_competitions')
-
-@login_required
-@organizer_required
-@require_POST
-def delete_stage(request, stage_id):
-    stage = get_object_or_404(Stage, pk=stage_id)
-    comp_id = stage.competition.id # Запоминаем ID соревнования, чтобы вернуться обратно
-
-    # --- ДОБАВИТЬ ЛОГ (ДО DELETE) ---
-    AuditLog.objects.create(
-        user=request.user,
-        competition=stage.competition,
-        action="Удаление этапа",
-        details=f"Организатор удалил этап «{stage.name}» и все его результаты."
-    )
-
-    stage.delete()
-    return redirect('manage_stages', comp_id=comp_id)
-
-@login_required
-@organizer_required
-@require_POST
-def delete_team(request, team_id):
-    team = get_object_or_404(Team, pk=team_id)
-    comp_id = team.competition.id
-
-    # --- ДОБАВИТЬ ЛОГ (ДО DELETE) ---
-    AuditLog.objects.create(
-        user=request.user,
-        competition=team.competition,
-        action="Удаление команды",
-        details=f"Организатор удалил команду «{team.team_name}»."
-    )
-
-    team.delete()
-    return redirect('manage_teams', comp_id=comp_id)
-
-@login_required
-@organizer_required
-@require_POST
-def delete_participant(request, part_id):
-    participant = get_object_or_404(Participant, pk=part_id)
-    comp_id = participant.competition.id
-
-    # --- ДОБАВИТЬ ЛОГ (ДО DELETE) ---
-    AuditLog.objects.create(
-        user=request.user,
-        competition=participant.competition,
-        action="Удаление участника",
-        details=f"Участник {participant.full_name} удален из списков соревнования."
-    )
-
-    participant.delete()
-    return redirect('manage_participants', comp_id=comp_id)
-
-@login_required
-@organizer_required
-@require_POST
-def delete_team_member(request, member_id):
-    member = get_object_or_404(TeamMember, pk=member_id)
-    team_id = member.team.id
+def export_csv_report(request, comp_id):
+    """Выгрузка СВОДНОГО отчета (Сумма мест) в Excel"""
+    competition = get_object_or_404(Competition, pk=comp_id)
+    individual_summary, _ = get_smart_summary(competition)
     
-    AuditLog.objects.create(
-        user=request.user,
-        competition=member.team.competition,
-        action="Исключение из команды",
-        details=f"Участник {member.participant.full_name} исключен из команды «{member.team.team_name}»."
-    )
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = f'attachment; filename="Summary_{competition.id}.csv"'
+    writer = csv.writer(response, delimiter=';')
     
-    member.delete()
-    return redirect('manage_team_members', team_id=team_id)
+    writer.writerow(['Соревнование:', competition.title, 'Дата:', competition.start_date])
+    writer.writerow(['Место', 'Стартовый номер', 'ФИО Участника', 'Общий штраф', 'Сумма занятых мест'])
+    
+    for index, row in enumerate(individual_summary):
+        if row['has_results']:
+            # ИСПРАВЛЕНИЕ: берем данные из row['final_score']
+            writer.writerow([index + 1, row['participant'].bib_number, row['participant'].full_name, row['total_penalty'], row['final_score']])
+    return response
+
+@login_required
+@organizer_required
+def export_xlsx_report(request, comp_id):
+    """Выгрузка СВОДНОГО отчета в настоящем формате Excel (.xlsx)"""
+    competition = get_object_or_404(Competition, pk=comp_id)
+    individual_summary, _ = get_smart_summary(competition)
+    
+    # Создаем новый Excel-документ
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Итоги турнира"
+    
+    # Записываем шапку
+    sheet.append(['Соревнование:', competition.title, 'Дата:', str(competition.start_date)])
+    sheet.append([]) # Пустая строка для отступа
+    sheet.append(['Место', 'Стартовый номер', 'ФИО Участника', 'Общий штраф', 'Сумма занятых мест'])
+    
+    # Записываем данные спортсменов
+    for index, row in enumerate(individual_summary):
+        if row['has_results']:
+            sheet.append([
+                index + 1, 
+                row['participant'].bib_number, 
+                row['participant'].full_name, 
+                float(row['total_penalty']), 
+                float(row['final_score'])
+            ])
+            
+    # Настраиваем HTTP-ответ
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="Summary_{competition.id}.xlsx"'
+    
+    # Сохраняем файл в ответ браузеру
+    workbook.save(response)
+    return response
+
+@login_required
+@organizer_required
+def export_excel(request, comp_id):
+    """Выгрузка СЫРЫХ результатов всех этапов в Excel (Из Архива)"""
+    comp = get_object_or_404(Competition, id=comp_id)
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = f'attachment; filename="Raw_Results_{comp.id}.csv"'
+    writer = csv.writer(response, delimiter=';')
+    
+    writer.writerow(['ФИО Участника', 'Номер (Бейдж)', 'Название этапа', 'Результат', 'Штраф'])
+    results = Result.objects.filter(participant__competition=comp, is_verified=True).select_related('participant', 'stage')
+    for r in results:
+        writer.writerow([r.participant.full_name, r.participant.bib_number, r.stage.name, str(r.value).replace('.', ','), str(r.penalty_value).replace('.', ',')])
+    return response
 
 @login_required
 @organizer_required
 @require_POST
 def toggle_archive(request, comp_id):
-    """Функция для переноса соревнования в архив"""
     comp = get_object_or_404(Competition, id=comp_id)
-    comp.is_archived = True
+    
+    # Инвертируем статус (если был False, станет True, и наоборот)
+    comp.is_archived = not comp.is_archived
     comp.save()
-    # Возвращаемся к списку соревнований организатора
-
-    # АВТОЛОГ:
-    AuditLog.objects.create(
-        user=request.user,
-        competition=comp,
-        action="Архивация",
-        details=f"Соревнование «{comp.title}» успешно перенесено в архив и заморожено."
-    )
-
-    return redirect('organizer_competitions')
+    
+    if comp.is_archived:
+        AuditLog.objects.create(user=request.user, competition=comp, action="Архивация", details=f"Турнир «{comp.title}» перенесен в архив.")
+        messages.warning(request, f"Турнир «{comp.title}» заморожен и отправлен в архив.")
+        return redirect('organizer_competitions')
+    else:
+        AuditLog.objects.create(user=request.user, competition=comp, action="Разархивация", details=f"Турнир «{comp.title}» восстановлен из архива.")
+        messages.success(request, f"Турнир «{comp.title}» успешно восстановлен и снова доступен для судейства!")
+        return redirect('archive_list')
 
 @login_required
 @organizer_required
 def archive_list(request):
-    """Страница модуля отчетности и архива"""
-    # Забираем только те, что в архиве
-    # --- ДОБАВЛЕНА ЗАЩИТА ---
-    
     archived_comps = Competition.objects.filter(is_archived=True).order_by('-start_date')
     return render(request, 'competitions/archive_list.html', {'competitions': archived_comps})
 
 @login_required
 @organizer_required
-def export_excel(request, comp_id):
-    """Генерация CSV-файла (читается в Excel) с результатами"""
-    # --- ДОБАВЛЕНА ЗАЩИТА ---
-    
-    comp = get_object_or_404(Competition, id=comp_id)
-    
-    # Настраиваем HTTP-ответ так, чтобы браузер скачал это как файл
-    response = HttpResponse(content_type='text/csv')
-    # Добавляем BOM-маркер (\ufeff), чтобы русский язык в Excel отображался идеально
-    response.write('\ufeff'.encode('utf8'))
-    response['Content-Disposition'] = f'attachment; filename="Export_{comp.id}_Results.csv"'
-    
-    # Используем разделитель 'точка с запятой' (стандарт для русского Excel)
-    writer = csv.writer(response, delimiter=';')
-    
-    # Пишем заголовки столбцов
-    writer.writerow(['ФИО Участника', 'Номер (Бейдж)', 'Название этапа', 'Результат', 'Штраф'])
-    
-    # Получаем все верифицированные результаты этого соревнования
-    results = Result.objects.filter(
-        participant__competition=comp,
-        is_verified=True
-    ).select_related('participant', 'stage')
-    
-    # Записываем данные построчно
-    for r in results:
-        writer.writerow([
-            r.participant.full_name,
-            r.participant.bib_number,
-            r.stage.name,
-            str(r.value).replace('.', ','), # Меняем точку на запятую для Excel
-            str(r.penalty_value).replace('.', ',')
-        ])
-        
-    return response
-
-@login_required
-@organizer_required
 def archive_detail(request, comp_id):
-    """Карточка подробного просмотра архивного соревнования"""
-    # --- ДОБАВЛЕНА ЗАЩИТА ---
-    
-    # Убеждаемся, что получаем только соревнование со статусом "В архиве"
     comp = get_object_or_404(Competition, id=comp_id, is_archived=True)
-    
-    # Собираем исторические данные
     stages = Stage.objects.filter(competition=comp).order_by('id')
     teams = Team.objects.filter(competition=comp).order_by('team_name')
     participants = Participant.objects.filter(competition=comp).order_by('full_name')
-    
-    context = {
-        'competition': comp,
-        'stages': stages,
-        'teams': teams,
-        'participants': participants,
-    }
-    return render(request, 'competitions/archive_detail.html', context)
+    return render(request, 'competitions/archive_detail.html', {'competition': comp, 'stages': stages, 'teams': teams, 'participants': participants})
 
 @login_required
 @organizer_required
 def audit_log_list(request):
-    """Просмотр системного журнала действий (только для Организатора/Админа)"""
-            
-    # Берем последние 200 действий
     logs = AuditLog.objects.select_related('user', 'competition').all()[:200] 
     return render(request, 'competitions/audit_log.html', {'logs': logs})
-
-@login_required
-@organizer_required
-def competition_panel(request, comp_id):
-    """Центральный хаб (панель управления) конкретным соревнованием"""
-    competition = get_object_or_404(Competition, pk=comp_id)
-    
-    # Собираем базовую статистику для красивого отображения
-    stats = {
-        'stages': competition.stages.count(),
-        'participants': competition.participants.count(),
-        'teams': competition.teams.count(),
-    }
-    
-    context = {
-        'competition': competition,
-        'stats': stats,
-    }
-    return render(request, 'competitions/competition_panel.html', context)

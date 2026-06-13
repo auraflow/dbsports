@@ -50,7 +50,23 @@
                                                     {% csrf_token %}
                                                     <input type="hidden" name="result_id" value="{{ res.id }}">
                                                     <input type="hidden" name="action" value="verify">
-                                                    <button type="submit" class="btn btn-sm btn-outline-success">Подтвердить</button>
+                                                    <button type="submit" class="btn btn-sm btn-outline-success fw-bold">Подтвердить</button>
+                                                </form>
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-info"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#penaltyModal{{ res.id }}">Штраф</button>
+                                            {% else %}
+                                                <form action="{% url 'verify_results_backend' stage.id %}"
+                                                      method="post"
+                                                      class="d-inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="result_id" value="{{ res.id }}">
+                                                    <input type="hidden" name="action" value="unverify">
+                                                    <button type="submit"
+                                                            class="btn btn-sm btn-outline-warning"
+                                                            title="Снять верификацию"
+                                                            onclick="return confirm('Отменить верификацию?');">Отменить</button>
                                                 </form>
                                             {% endif %}
                                             <form action="{% url 'verify_results_backend' stage.id %}"
@@ -63,6 +79,53 @@
                                                         class="btn btn-sm btn-danger"
                                                         onclick="return confirm('Удалить этот результат?');">Удалить</button>
                                             </form>
+                                        </div>
+                                        <div class="modal fade"
+                                             id="penaltyModal{{ res.id }}"
+                                             tabindex="-1"
+                                             aria-hidden="true">
+                                            <div class="modal-dialog modal-dialog-centered text-start">
+                                                <div class="modal-content bg-dark text-light border-info">
+                                                    <div class="modal-header border-secondary">
+                                                        <h5 class="modal-title text-info">Изменение штрафа</h5>
+                                                        <button type="button"
+                                                                class="btn-close btn-close-white"
+                                                                data-bs-dismiss="modal"
+                                                                aria-label="Закрыть"></button>
+                                                    </div>
+                                                    <form action="{% url 'verify_results_backend' stage.id %}" method="post">
+                                                        {% csrf_token %}
+                                                        <div class="modal-body">
+                                                            <p>Спортсмен: <strong class="text-warning">{{ res.participant.full_name }}</strong></p>
+                                                            <p>Текущий штраф: <strong class="text-danger">{{ res.penalty_value|default:"0.000" }}</strong></p>
+                                                            <input type="hidden" name="result_id" value="{{ res.id }}">
+                                                            <input type="hidden" name="action" value="edit_penalty">
+                                                            <div class="mb-3 mt-4">
+                                                                <label class="form-label text-muted">Новое значение штрафа:</label>
+                                                                <input type="number"
+                                                                       step="0.001"
+                                                                       min="0"
+                                                                       class="form-control"
+                                                                       name="new_penalty"
+                                                                       value="{{ res.penalty_value|default:'0' }}"
+                                                                       required>
+                                                            </div>
+                                                            <div class="mb-2">
+                                                                <label class="form-label text-muted">Обоснование (для журнала аудита):</label>
+                                                                <input type="text"
+                                                                       class="form-control"
+                                                                       name="reason"
+                                                                       placeholder="Например: Заступ за стартовую линию"
+                                                                       required>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer border-secondary">
+                                                            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Отмена</button>
+                                                            <button type="submit" class="btn btn-info fw-bold">Применить и утвердить</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>

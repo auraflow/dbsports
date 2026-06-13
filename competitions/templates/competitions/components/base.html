@@ -16,6 +16,20 @@
     <body class="{% block body_class %}gruvbox-theme{% endblock body_class %}">
         {% include "competitions/components/navbar.html" %}
         <main class="container mt-4 mb-4">
+            {% if messages %}
+                <div class="messages-container mb-4 no-print">
+                    {% for message in messages %}
+                        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show shadow-sm border-0"
+                             role="alert">
+                            <strong>Системное уведомление:</strong> {{ message }}
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="alert"
+                                    aria-label="Закрыть"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
             {% block content %}
             {% endblock content %}
         </main>

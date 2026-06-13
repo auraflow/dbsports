@@ -1,0 +1,20 @@
+{% extends "competitions/components/base.html" %}
+{% block title %}{{ title }}{% endblock title %}
+{% block content %}
+    <div class="mb-3 no-print">
+        <a href="{% url 'dashboard' %}"
+           class="btn btn-sm btn-outline-light smart-back">← Отмена</a>
+    </div>
+    <div class="card mb-4 border-warning shadow-sm">
+        <div class="card-body py-4">
+            <h2 class="mb-2 text-warning">✏️ {{ title }}</h2>
+            <p class="text-muted mb-4">Внесите необходимые изменения в форму ниже и сохраните.</p>
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-4">{{ form.as_p }}</div>
+                <hr class="mb-4 border-secondary">
+                <button type="submit" class="btn btn-outline-warning px-4 fw-bold shadow-sm">💾 Сохранить изменения</button>
+            </form>
+        </div>
+    </div>
+{% endblock content %}

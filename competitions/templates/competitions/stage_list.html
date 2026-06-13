@@ -2,39 +2,45 @@
 {% block title %}Выбор этапа | АСУ Соревнований{% endblock title %}
 {% block content %}
     <div class="mb-3 no-print">
-        <a href="{% url 'organizer_competitions' %}"
+        <a href="{% url 'dashboard' %}"
            class="btn btn-sm btn-outline-light smart-back">← Назад</a>
     </div>
-    <div class="card mb-4">
+    <div class="card mb-4 border-primary">
         <div class="card-body py-4">
-            <h2 class="mb-2">⏱️ Выбор этапа для судейства</h2>
-            <p class="text-muted m-0">Выберите этап из активных соревнований, чтобы начать ввод результатов участников.</p>
+            <h2 class="mb-2 text-primary">⏱️ Выбор этапа для судейства</h2>
+            <p class="text-muted m-0">Выберите нужный этап из списка, чтобы начать фиксацию результатов.</p>
         </div>
     </div>
     {% if stages %}
-        {% for stage in stages %}
-            <div class="card mb-3">
-                <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
-                    <div>
-                        <h3 class="text-warning mb-1">{{ stage.name }}</h3>
-                        <p class="text-muted m-0">
-                            {{ stage.competition.title }}
-                            <br>
-                            Единицы измерения: <span class="text-light fw-bold">{{ stage.type.measure_unit }}</span>
-                        </p>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <a href="{% url "enter_result" stage.id %}"
-                           class="btn btn-outline-success">Ввод результатов</a>
-                        <a href="{% url "stage_leaderboard" stage.id %}"
-                           class="btn btn-outline-light">Турнирная таблица</a>
-                    </div>
+        {% regroup stages by competition as grouped_stages %}
+        {% for group in grouped_stages %}
+            <div class="card mb-4 border-secondary shadow-sm">
+                <div class="card-header border-secondary py-3">
+                    <h4 class="text-warning m-0">🏆 {{ group.grouper.title }}</h4>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for stage in group.list %}
+                        <div class="list-group-item bg-transparent border-secondary py-3 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                            <div>
+                                <h5 class="text-light mb-1">{{ stage.name }}</h5>
+                                <p class="text-muted m-0 small">
+                                    Ед. измерения: <span class="text-warning fw-bold">{{ stage.type.measure_unit }}</span>
+                                </p>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'enter_result' stage.id %}"
+                                   class="btn btn-sm btn-outline-success">Ввод результатов</a>
+                                <a href="{% url 'stage_leaderboard' stage.id %}"
+                                   class="btn btn-sm btn-outline-light">Турнирная таблица</a>
+                            </div>
+                        </div>
+                    {% endfor %}
                 </div>
             </div>
         {% endfor %}
     {% else %}
         <div class="card">
-            <div class="card-body py-4">
+            <div class="card-body py-4 text-center">
                 <p class="text-muted m-0">В данный момент нет активных этапов. Обратитесь к организатору.</p>
             </div>
         </div>

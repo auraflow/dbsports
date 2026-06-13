@@ -31,8 +31,18 @@
                                     <td class="text-muted">{{ comp.start_date|date:"d.m.Y" }}</td>
                                     <td class="text-danger">В архиве</td>
                                     <td class="text-end">
-                                        <a href="{% url "archive_detail" comp.id %}"
-                                           class="btn btn-sm btn-outline-light">Сводка</a>
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <form action="{% url 'toggle_archive' comp.id %}" method="post" class="m-0">
+                                                {% csrf_token %}
+                                                <button type="submit"
+                                                        class="btn btn-sm btn-outline-warning shadow-sm"
+                                                        onclick="return confirm('Восстановить этот турнир? Он снова появится в Главном меню.');">
+                                                    🔓 Восстановить
+                                                </button>
+                                            </form>
+                                            <a href="{% url 'archive_detail' comp.id %}"
+                                               class="btn btn-sm btn-outline-light shadow-sm">Сводка</a>
+                                        </div>
                                     </td>
                                 </tr>
                             {% endfor %}

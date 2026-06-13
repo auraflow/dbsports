@@ -44,14 +44,18 @@
                                             <td class="text-warning fw-bold">{{ part.bib_number|default:"-" }}</td>
                                             <td class="fw-bold">{{ part.full_name }}</td>
                                             <td class="text-end">
-                                                <form action="{% url "delete_participant" part.id %}"
-                                                      method="post"
-                                                      class="d-inline">
-                                                    {% csrf_token %}
-                                                    <button type="submit"
-                                                            class="btn btn-sm btn-danger"
-                                                            onclick="return confirm('Отменить регистрацию участника?');">Удалить</button>
-                                                </form>
+                                                <div class="d-flex justify-content-end gap-2">
+                                                    <a href="{% url 'edit_participant' part.id %}"
+                                                       class="btn btn-sm btn-outline-warning">Изменить</a>
+                                                    <form action="{% url 'delete_participant' part.id %}"
+                                                          method="post"
+                                                          class="m-0">
+                                                        {% csrf_token %}
+                                                        <button type="submit"
+                                                                class="btn btn-sm btn-danger"
+                                                                onclick="return confirm('Отменить регистрацию участника?');">Удалить</button>
+                                                    </form>
+                                                </div>
                                             </td>
                                         </tr>
                                     {% endfor %}
