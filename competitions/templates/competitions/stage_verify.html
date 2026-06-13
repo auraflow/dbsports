@@ -50,10 +50,11 @@
                                                     {% csrf_token %}
                                                     <input type="hidden" name="result_id" value="{{ res.id }}">
                                                     <input type="hidden" name="action" value="verify">
-                                                    <button type="submit" class="btn btn-sm btn-outline-success fw-bold">Подтвердить</button>
+                                                    <button type="submit"
+                                                            class="btn btn-sm btn-outline-success fw-bold requires-network">Подтвердить</button>
                                                 </form>
                                                 <button type="button"
-                                                        class="btn btn-sm btn-outline-info"
+                                                        class="btn btn-sm btn-outline-info requires-network"
                                                         data-bs-toggle="modal"
                                                         data-bs-target="#penaltyModal{{ res.id }}">Штраф</button>
                                             {% else %}
@@ -64,7 +65,7 @@
                                                     <input type="hidden" name="result_id" value="{{ res.id }}">
                                                     <input type="hidden" name="action" value="unverify">
                                                     <button type="submit"
-                                                            class="btn btn-sm btn-outline-warning"
+                                                            class="btn btn-sm btn-outline-warning requires-network"
                                                             title="Снять верификацию"
                                                             onclick="return confirm('Отменить верификацию?');">Отменить</button>
                                                 </form>
@@ -76,7 +77,7 @@
                                                 <input type="hidden" name="result_id" value="{{ res.id }}">
                                                 <input type="hidden" name="action" value="delete">
                                                 <button type="submit"
-                                                        class="btn btn-sm btn-danger"
+                                                        class="btn btn-sm btn-danger requires-network"
                                                         onclick="return confirm('Удалить этот результат?');">Удалить</button>
                                             </form>
                                         </div>
@@ -89,7 +90,7 @@
                                                     <div class="modal-header border-secondary">
                                                         <h5 class="modal-title text-info">Изменение штрафа</h5>
                                                         <button type="button"
-                                                                class="btn-close btn-close-white"
+                                                                class="btn-close btn-close-white requires-network"
                                                                 data-bs-dismiss="modal"
                                                                 aria-label="Закрыть"></button>
                                                     </div>

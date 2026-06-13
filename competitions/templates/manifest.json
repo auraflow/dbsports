@@ -1,0 +1,23 @@
+{
+  "short_name": "АСУ Спорт",
+  "name": "Автоматизированная Система Управления Соревнованиями",
+  "icons": [
+    {
+      "src": "/static/images/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/static/images/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#282828",
+  "theme_color": "#ffc107",
+  "dir": "ltr",
+  "lang": "ru",
+  "display": "standalone",
+  "orientation": "portrait-primary"
+}

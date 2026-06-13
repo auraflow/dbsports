@@ -1,11 +1,18 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
+from django.views.generic import TemplateView
 from . import views
 
 urlpatterns = [
     # Авторизация
     path('login/', auth_views.LoginView.as_view(template_name='competitions/login.html', redirect_authenticated_user=True), name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('manifest.json', TemplateView.as_view(template_name='manifest.json', content_type='application/json'), name='manifest.json'),
+
+    # Регистрация Service Worker как JavaScript файла
+    path('sw.js', TemplateView.as_view(template_name='sw.js', content_type='application/javascript'), name='sw.js'),
+    # PWA Манифест для кэширования
+    path('offline-manifest/', views.offline_manifest, name='offline_manifest'),
 
     # Основные интерфейсы
     path('', views.dashboard, name='dashboard'),

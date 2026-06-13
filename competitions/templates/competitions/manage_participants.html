@@ -19,7 +19,8 @@
                     <form method="post">
                         {% csrf_token %}
                         {{ form.as_p }}
-                        <button type="submit" class="btn btn-outline-success w-100 mt-2">Зарегистрировать</button>
+                        <button type="submit"
+                                class="btn btn-outline-success w-100 mt-2 requires-network">Зарегистрировать</button>
                     </form>
                 </div>
             </div>
@@ -46,13 +47,13 @@
                                             <td class="text-end">
                                                 <div class="d-flex justify-content-end gap-2">
                                                     <a href="{% url 'edit_participant' part.id %}"
-                                                       class="btn btn-sm btn-outline-warning">Изменить</a>
+                                                       class="btn btn-sm btn-outline-warning requires-network">Изменить</a>
                                                     <form action="{% url 'delete_participant' part.id %}"
                                                           method="post"
                                                           class="m-0">
                                                         {% csrf_token %}
                                                         <button type="submit"
-                                                                class="btn btn-sm btn-danger"
+                                                                class="btn btn-sm btn-danger requires-network"
                                                                 onclick="return confirm('Отменить регистрацию участника?');">Удалить</button>
                                                     </form>
                                                 </div>

@@ -6,34 +6,48 @@
            class="btn btn-sm btn-outline-light smart-back">← Назад</a>
     </div>
     <div class="card mb-4">
-        <div class="card-body py-4">
-            <h2 class="mb-1 text-warning">⏱️ Ввод результатов</h2>
-            <p class="text-muted mb-0">
-                Этап: <strong class="text-light">{{ stage.name }}</strong> |
-                Единицы измерения: <strong class="text-light">{{ stage.type.measure_unit }}</strong>
-            </p>
+        <div class="card-body py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h2 class="mb-1 text-warning">⏱️ Ввод результатов</h2>
+                <p class="text-muted mb-0">
+                    Этап: <strong class="text-light" id="stage-name-display">{{ stage.name }}</strong> |
+                    Ед. измерения: <strong class="text-light">{{ stage.type.measure_unit }}</strong>
+                </p>
+            </div>
         </div>
-    </div>
-    <div class="row">
-        <div class="col-md-5 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h4 class="mb-3">Новый результат</h4>
-                    <form method="post">
-                        {% csrf_token %}
-                        <div class="mb-3">{{ form.as_p }}</div>
-                        <button type="submit" class="btn btn-outline-success w-100">Записать результат</button>
-                    </form>
+        <div id="offline-sync-banner"
+             class="alert alert-warning d-none shadow-sm border-0 mb-4"
+             role="alert">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span>
+                    <strong>⚠️ Автономный режим:</strong> Найдено <span id="local-records-count" class="fw-bold">0</span> результатов, сохраненных локально. Они будут отправлены в базу автоматически при восстановлении интернета.
+                </span>
+                <div>
+                    <button id="export-backup-btn"
+                            class="btn btn-sm btn-outline-danger fw-bold bg-white me-2"
+                            title="Скачать данные файлом на случай сбоя">💾 Сохранить копию</button>
                 </div>
             </div>
         </div>
-        <div class="col-md-7 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h4 class="mb-3">Записанные данные</h4>
-                    {% if results %}
+        <div class="row">
+            <div class="col-md-5 mb-4">
+                <div class="card h-100 border-secondary">
+                    <div class="card-body">
+                        <h4 class="mb-3 text-light">Новый результат</h4>
+                        <form method="post" id="result-submission-form">
+                            {% csrf_token %}
+                            <div class="mb-3" id="django-form-fields-wrapper">{{ form.as_p }}</div>
+                            <button type="submit" class="btn btn-outline-success w-100 fw-bold shadow-sm">💾 Записать результат</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-7 mb-4">
+                <div class="card h-100 border-secondary">
+                    <div class="card-body">
+                        <h4 class="mb-3 text-light">Записанные данные (Последние 10)</h4>
                         <div class="table-responsive">
-                            <table class="table align-middle m-0">
+                            <table class="table align-middle m-0" id="results-data-table">
                                 <thead>
                                     <tr>
                                         <th>Участник</th>
@@ -43,39 +57,385 @@
                                         <th class="text-end">Действие</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    {% for res in results %}
-                                        <tr>
-                                            <td class="fw-bold">{{ res.participant.full_name }}</td>
-                                            <td class="text-warning fw-bold">{{ res.value }}</td>
-                                            <td class="text-danger">{{ res.penalty_value }}</td>
-                                            <td>
-                                                {% if res.is_verified %}
-                                                    <span class="text-success fw-bold">✓ Принят</span>
-                                                {% else %}
-                                                    <span class="text-muted">Ожидает</span>
-                                                {% endif %}
-                                            </td>
-                                            <td class="text-end">
-                                                {% if not res.is_verified %}
-                                                    <a href="{% url 'edit_result' res.id %}"
-                                                       class="btn btn-sm btn-outline-warning">Изменить</a>
-                                                {% else %}
-                                                    <button class="btn btn-sm btn-outline-secondary"
-                                                            disabled
-                                                            title="Утверждено Главным судьей">🔒</button>
-                                                {% endif %}
-                                            </td>
+                                <tbody id="results-table-body">
+                                    {% if results %}
+                                        {% for res in results %}
+                                            <tr id="row-result-{{ res.id }}">
+                                                <td class="fw-bold text-light">{{ res.participant.full_name }}</td>
+                                                <td class="text-warning fw-bold">{{ res.value }}</td>
+                                                <td class="text-danger">{{ res.penalty_value|default:"0.000" }}</td>
+                                                <td>
+                                                    {% if res.is_verified %}
+                                                        <span class="text-success fw-bold">✓ Принят</span>
+                                                    {% else %}
+                                                        <span class="text-muted">Ожидает</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-end">
+                                                    {% if not res.is_verified %}
+                                                        <a href="{% url 'edit_result' res.id %}"
+                                                           class="btn btn-sm btn-outline-warning requires-network">Изменить</a>
+                                                    {% else %}
+                                                        <button class="btn btn-sm btn-outline-secondary"
+                                                                disabled
+                                                                title="Утверждено Главным судьей">🔒</button>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr id="empty-table-row">
+                                            <td colspan="5" class="text-muted text-center py-3">Пока не добавлено ни одного результата.</td>
                                         </tr>
-                                    {% endfor %}
+                                    {% endif %}
                                 </tbody>
                             </table>
                         </div>
-                    {% else %}
-                        <p class="text-muted m-0">Пока не добавлено ни одного результата.</p>
-                    {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+    <script>
+        const STAGE_ID = "{{ stage.id }}";
+        const CSRF_TOKEN = "{{ csrf_token }}";
+        const STORAGE_KEY = `offline_results_stage_${STAGE_ID}`;
+
+        const form = document.getElementById('result-submission-form');
+        const participantSelect = document.querySelector('#id_participant');
+        const valueInput = document.querySelector('#id_value');
+        const penaltyInput = document.querySelector('#id_penalty_value');
+        const commentInput = document.querySelector('#id_comment');
+
+        const syncBanner = document.getElementById('offline-sync-banner');
+        const localCountSpan = document.getElementById('local-records-count');
+        const tableBody = document.getElementById('results-table-body');
+
+        // НОВОЕ: Функция для динамического получения свежего CSRF-токена из браузера
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Проверка сетевого статуса (Только логика данных, без UI)
+        function updateNetworkStatus() {
+            if (navigator.onLine) {
+                // Интернет появился - пытаемся отправить локальные данные на сервер
+                if (typeof syncOfflineData === 'function') {
+                    syncOfflineData();
+                }
+            } else {
+                // Интернет пропал - показываем желтый баннер
+                if (typeof renderOfflineBanner === 'function') {
+                    renderOfflineBanner();
+                }
+            }
+        }
+
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+
+        // Работа с локальным кэшем LocalStorage
+        function getLocalRecords() {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+        }
+
+        function saveLocalRecords(records) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            renderOfflineBanner();
+        }
+
+        // НОВОЕ: Безопасное удаление только одной записи из очереди
+        function removeRecordFromStorage(pId) {
+            let records = getLocalRecords();
+            // Оставляем всех, кроме того, кого только что успешно отправили
+            records = records.filter(r => String(r.participant_id) !== String(pId));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            renderOfflineBanner();
+        }
+
+        function renderOfflineBanner() {
+            const records = getLocalRecords();
+            if (records.length > 0) {
+                syncBanner.classList.remove('d-none');
+                localCountSpan.innerText = records.length;
+            } else {
+                syncBanner.classList.add('d-none');
+            }
+        }
+
+        // Перехват отправки формы
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const pId = participantSelect.value;
+            const pName = participantSelect.options[participantSelect.selectedIndex].text;
+            const val = valueInput.value;
+            const pen = penaltyInput.value || "0.000";
+            const comm = commentInput ? commentInput.value : "";
+
+            if (!pId || !val) {
+                alert("Заполните обязательные поля формы!");
+                return;
+            }
+
+            if (!navigator.onLine) {
+                // МЕХАНИЗМ ОФЛАЙН ЗАПИСИ
+                const records = getLocalRecords();
+
+                // Проверяем локальный дубликат
+                if (records.some(r => r.participant_id === pId)) {
+                    alert("Ошибка: Результат этого участника уже сохранен в локальной очереди!");
+                    return;
+                }
+
+                records.push({
+                    participant_id: pId,
+                    participant_name: pName,
+                    value: val,
+                    penalty_value: pen,
+                    comment: comm,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                saveLocalRecords(records);
+
+                // Отрисовываем "фантомную" строку в таблицу, чтобы судья видел результат
+                removeEmptyRowPlaceholder();
+                const tempRowId = `local-temp-${Date.now()}`;
+                const rowHtml = `
+                    <tr id="${tempRowId}" class="table-warning border-warning">
+                        <td class="fw-bold text-dark">${pName}</td>
+                        <td class="text-dark fw-bold">${val}</td>
+                        <td class="text-danger">${pen}</td>
+                        <td><span class="badge bg-warning text-dark shadow-sm">⏳ Офлайн-кэш</span></td>
+                        <td class="text-end text-muted small">${new Date().toLocaleTimeString()}</td>
+                    </tr>
+                `;
+                tableBody.insertAdjacentHTML('afterbegin', rowHtml);
+
+                // Убираем участника из выпадающего списка
+                participantSelect.remove(participantSelect.selectedIndex);
+                form.reset();
+            } else {
+                // СТАНДАРТНАЯ СИНХРОННАЯ AJAX ОТПРАВКА
+                sendDataToServer(pId, val, pen, comm, participantSelect.selectedIndex);
+            }
+        });
+
+        function sendDataToServer(pId, val, pen, comm, selectedIndex) {
+            const formData = new FormData();
+            formData.append('participant', pId);
+            formData.append('value', val);
+            formData.append('penalty_value', pen);
+            formData.append('comment', comm);
+
+            fetch(window.location.href, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        // ИЗМЕНЕНО: Сначала пытаемся взять свежий токен из Cookie, если его нет - берем старый
+                        'X-CSRFToken': getCookie('csrftoken') || CSRF_TOKEN
+                    },
+                    body: formData
+                })
+                .then(async response => {
+                    if (response.status === 403) {
+                        alert("⚠️ Сессия истекла!...");
+                        return;
+                    }
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        // УСПЕХ: Динамическое обновление таблицы
+                        removeEmptyRowPlaceholder();
+                        const rowHtml = `...твой HTML строки...`;
+                        tableBody.insertAdjacentHTML('afterbegin', rowHtml);
+
+                        // НОВОЕ: Данные сохранены в БД! Теперь можно смело удалять их из памяти телефона
+                        removeRecordFromStorage(pId);
+
+                        // --- НОВОЕ: Включаем сигнализацию об изменении базы ---
+                        sessionStorage.setItem('cache_outdated', 'true');
+                        // Сразу меняем вид кнопки в шапке (чтобы судья увидел это без перезагрузки)
+                        const globalBtn = document.getElementById('manual-cache-btn');
+                        if (globalBtn) {
+                            globalBtn.classList.remove('btn-outline-light');
+                            globalBtn.classList.add('btn-warning', 'text-dark', 'fw-bold', 'shadow-lg');
+                            globalBtn.innerHTML = '⚠️ Обновить базу';
+                        }
+
+                        // Удаляем человека из dropdown
+                        if (selectedIndex !== undefined) {
+                            participantSelect.remove(selectedIndex);
+                        } else {
+                            for (let i = 0; i < participantSelect.options.length; i++) {
+                                if (participantSelect.options[i].value === pId) {
+                                    participantSelect.remove(i);
+                                    break;
+                                }
+                            }
+                        }
+                        form.reset();
+                    } else {
+                        // ОШИБКА: Сервер не принял данные
+                        alert(`❌ Отказ сервера для участника:\n${data.error || "Неизвестный сбой"}`);
+
+                        // НОВОЕ: Если это жесткий отказ (например, 400 Bad Request - дубликат),
+                        // нам нужно выкинуть его из очереди, чтобы он не спамил сервер при каждом включении сети.
+                        if (response.status === 400) {
+                            console.warn(`[Sync] Удаление конфликтной записи (ID: ${pId}) из очереди.`);
+                            removeRecordFromStorage(pId);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error("Сбой AJAX:", error);
+                });
+        }
+
+        // Автоматическая фоновая очистка очереди
+        function syncOfflineData() {
+            const records = getLocalRecords();
+            if (records.length === 0) return;
+
+            // Очищаем временные офлайн-строки перед заливкой чистых данных с сервера
+            const localRows = tableBody.querySelectorAll('[id^="local-temp-"]');
+            localRows.forEach(row => row.remove());
+
+            // Отправляем локальные записи пачкой друг за другом
+            records.forEach(r => {
+                sendDataToServer(r.participant_id, r.value, r.penalty_value, r.comment, undefined);
+            });
+            // И всё! Больше тут ничего нет, ждем ответов от сервера в фоне.
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Восстановление интерфейса из кэша (Бронебойная версия)
+        function restoreOfflineUI() {
+            console.log("[Offline UI] 🔍 Запуск восстановления интерфейса...");
+
+            // Проверяем, есть ли вообще функция чтения кэша
+            if (typeof getLocalRecords !== 'function') {
+                console.error("[Offline UI] Ошибка: функция getLocalRecords не найдена!");
+                return;
+            }
+
+            const records = getLocalRecords();
+            console.log("[Offline UI] 📦 Найдено записей в локальной очереди:", records);
+
+            if (!records || records.length === 0) {
+                console.log("[Offline UI] Очередь пуста, интерфейс не меняем.");
+                return;
+            }
+
+            // 1. Включаем желтый баннер
+            const banner = document.getElementById('offline-sync-banner');
+            const countSpan = document.getElementById('local-records-count');
+            if (banner) banner.classList.remove('d-none');
+            if (countSpan) countSpan.innerText = records.length;
+
+            // 2. ИЩЕМ ЭЛЕМЕНТЫ ЯВНО (защита от ошибок области видимости)
+            // Ищем выпадающий список (стандартно в Django у него атрибут name="participant")
+            const selectEl = document.querySelector('select[name="participant"]') || document.querySelector('select');
+
+            // Ищем тело таблицы, куда вставлять строки
+            const tbodyEl = document.querySelector('table tbody');
+
+            if (!tbodyEl) {
+                console.error("[Offline UI] ❌ Ошибка: не найдено тело таблицы (tbody) на странице!");
+                return;
+            }
+
+            // 3. Перебираем сохраненные результаты и рисуем их
+            records.forEach(record => {
+                // 1. БЕРЕМ ИМЯ НАПРЯМУЮ ИЗ КЭША (которое ты уже заботливо сохранил!)
+                let participantName = record.participant_name || "Участник (Офлайн)";
+
+                // 2. Ищем участника в списке и удаляем
+                if (selectEl) {
+                    for (let i = 0; i < selectEl.options.length; i++) {
+                        // ИСПРАВЛЕНИЕ: Ищем по ключу participant_id, а не participant!
+                        if (String(selectEl.options[i].value) === String(record.participant_id)) {
+                            // Резервный вариант, если кэш старый и без имени
+                            if (!record.participant_name) {
+                                participantName = selectEl.options[i].text;
+                            }
+                            selectEl.remove(i);
+                            break;
+                        }
+                    }
+                }
+
+                // Убираем строку "Нет данных", если она есть
+                if (typeof removeEmptyRowPlaceholder === "function") {
+                    removeEmptyRowPlaceholder();
+                } else {
+                    // Запасной вариант удаления пустой строки
+                    const emptyRow = document.getElementById('empty-row-placeholder');
+                    if (emptyRow) emptyRow.remove();
+                }
+
+                // Рисуем строку
+                const rowHtml = `
+                    <tr class="fade-in" style="background-color: rgba(255, 193, 7, 0.05);">
+                        <td class="fw-bold text-light">${participantName}</td>
+                        <td class="text-warning fw-bold">${record.value}</td>
+                        <td class="text-danger">${record.penalty_value || record.penalty || '0'}</td>
+                        <td><span class="badge bg-warning text-dark shadow-sm">⏳ В очереди</span></td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-secondary disabled requires-network" title="Будет отправлено при появлении сети">🔒</button>
+                        </td>
+                    </tr>
+                `;
+                tbodyEl.insertAdjacentHTML('afterbegin', rowHtml);
+            });
+
+            console.log("[Offline UI] ✅ Интерфейс успешно восстановлен из кэша!");
+        }
+
+        function removeEmptyRowPlaceholder() {
+            const emptyRow = document.getElementById('empty-table-row');
+            if (emptyRow) emptyRow.remove();
+        }
+
+        // НОВОЕ: Логика создания файла резервной копии
+        document.getElementById('export-backup-btn').addEventListener('click', function() {
+            const records = getLocalRecords();
+            if (records.length === 0) {
+                alert("Нет данных для сохранения.");
+                return;
+            }
+
+            // Превращаем JSON в текстовый файл
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(records, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `Офлайн_бэкап_Этап_${STAGE_ID}_${new Date().toLocaleDateString()}.json`);
+
+            // Клик-невидимка для скачивания
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+
+            alert("✅ Резервная копия успешно скачана! Этот файл можно будет передать Главному судье.");
+        });
+
+        // Первичный запуск при загрузке страницы
+        updateNetworkStatus();
+        renderOfflineBanner();
+        // Запускаем восстановление UI сразу при открытии страницы
+        document.addEventListener("DOMContentLoaded", function() {
+            restoreOfflineUI();
+        });
+    </script>
 {% endblock content %}

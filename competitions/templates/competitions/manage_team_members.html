@@ -19,7 +19,8 @@
                     <form method="post">
                         {% csrf_token %}
                         {{ form.as_p }}
-                        <button type="submit" class="btn btn-outline-success w-100 mt-2">Добавить участника</button>
+                        <button type="submit"
+                                class="btn btn-outline-success w-100 mt-2 requires-network">Добавить участника</button>
                     </form>
                 </div>
             </div>

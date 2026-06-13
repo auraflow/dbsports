@@ -26,8 +26,13 @@ SECRET_KEY = 'django-insecure-z&6y*=03w%pia*tr##xvbt(ojznz8ucmy+^fcaksh-gvj%+0m-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+# Обязательно удалить после окончания тестирования
+ALLOWED_HOSTS = ['*']
+# Разрешаем бэкенду принимать POST-запросы (авторизацию) через туннели
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.lhr.life',
+    'https://*.localhost.run',
+]
 
 # Application definition
 

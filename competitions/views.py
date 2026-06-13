@@ -8,6 +8,8 @@ from django.contrib.auth import logout
 from django.views.decorators.http import require_POST
 from django.db.models import ProtectedError
 from django.contrib import messages
+from django.http import JsonResponse
+from django.urls import reverse
 
 from .models import (
     Competition, Stage, Result, Team, TeamMember, 
@@ -101,15 +103,21 @@ def stage_list(request):
 @login_required
 @archive_lock
 def enter_result(request, stage_id):
-    """Интерфейс ввода результатов участникам"""
+    """Интерфейс ввода результатов участникам с поддержкой AJAX и офлайн-синхронизации"""
     stage = get_object_or_404(Stage, pk=stage_id)
     
     if request.method == 'POST':
         form = ResultForm(request.POST)
+        # Проверяем, является ли запрос AJAX-запросом (через кастомный заголовок)
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
         if form.is_valid():
             result = form.save(commit=False)
             
+            # ЗАЩИТА: Запрет на дублирование результатов
             if Result.objects.filter(participant=result.participant, stage=stage).exists():
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': 'Результат для этого участника уже зафиксирован!'}, status=400)
                 form.add_error('participant', 'Результат для этого участника уже зафиксирован!')
             else:
                 result.stage = stage
@@ -122,15 +130,31 @@ def enter_result(request, stage_id):
                     action="Ввод результата",
                     details=f"Судья зафиксировал результат для {result.participant.full_name} на этапе «{stage.name}»: {result.value}."
                 )
+                
+                # Если это был AJAX, возвращаем данные нового результата для динамического добавления в таблицу
+                if is_ajax:
+                    return JsonResponse({
+                        'success': True,
+                        'result': {
+                            'id': result.id,
+                            'participant_id': result.participant.id,
+                            'participant_name': result.participant.full_name,
+                            'value': str(result.value),
+                            'penalty_value': str(result.penalty_value),
+                            'is_verified': result.is_verified
+                        }
+                    })
+                
                 messages.success(request, f"Результат для {result.participant.full_name} успешно записан!")
                 return redirect('enter_result', stage_id=stage.id)
+        else:
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': 'Некорректные данные формы. Проверьте значения.'}, status=400)
     else:
         form = ResultForm()
         
-        # УМНЫЙ ФИЛЬТР: Получаем ID всех участников, которые УЖЕ пробежали этот этап
+        # Умный выпадающий список: исключаем тех, кто уже прошел этап
         completed_participant_ids = Result.objects.filter(stage=stage).values_list('participant_id', flat=True)
-        
-        # Передаем в форму только тех, кого НЕТ в списке пробежавших (exclude)
         form.fields['participant'].queryset = stage.competition.participants.exclude(
             id__in=completed_participant_ids
         ).order_by('full_name')
@@ -780,3 +804,47 @@ def archive_detail(request, comp_id):
 def audit_log_list(request):
     logs = AuditLog.objects.select_related('user', 'competition').all()[:200] 
     return render(request, 'competitions/audit_log.html', {'logs': logs})
+
+@login_required
+def offline_manifest(request):
+    """
+    Генератор списка всех доступных пользователю страниц для PWA предзагрузки.
+    Гарантирует, что в офлайн-режиме будут работать глубокие ссылки.
+    """
+    urls = [
+        reverse('dashboard'),
+        reverse('stage_list'),
+        reverse('chief_stage_list'),
+    ]
+
+    # Глобальные разделы для админов
+    if request.user.role.role_name == "Организатор" or request.user.is_superuser:
+        urls.append(reverse('audit_log_list'))
+        urls.append(reverse('archive_list'))
+        urls.append(reverse('organizer_competitions'))
+
+    # Собираем ссылки для активных соревнований
+    competitions = Competition.objects.filter(is_archived=False)
+    for comp in competitions:
+        urls.append(reverse('competition_summary', kwargs={'comp_id': comp.id}))
+        if request.user.role.role_name == "Организатор" or request.user.is_superuser:
+            urls.append(reverse('competition_panel', kwargs={'comp_id': comp.id}))
+            urls.append(reverse('manage_participants', kwargs={'comp_id': comp.id}))
+            urls.append(reverse('manage_stages', kwargs={'comp_id': comp.id}))
+            urls.append(reverse('manage_teams', kwargs={'comp_id': comp.id}))
+            
+            # Ссылки на команды (внутри турнира)
+            for team in comp.teams.all():
+                urls.append(reverse('manage_team_members', kwargs={'team_id': team.id}))
+
+    # Собираем ссылки на формы судейства и турнирные таблицы
+    stages = Stage.objects.filter(competition__is_archived=False)
+    for stage in stages:
+        urls.append(reverse('enter_result', kwargs={'stage_id': stage.id}))
+        urls.append(reverse('stage_leaderboard', kwargs={'stage_id': stage.id}))
+        if request.user.role.role_name in ["Главный судья", "Организатор", "Администратор"]:
+            urls.append(reverse('stage_verify_panel', kwargs={'stage_id': stage.id}))
+
+    # Убираем дубликаты
+    unique_urls = list(set(urls))
+    return JsonResponse({'urls': unique_urls})
