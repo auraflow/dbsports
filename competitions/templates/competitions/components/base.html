@@ -85,7 +85,7 @@
 
                     // 2. Блокируем все формы POST (Удалить, В Архив, Подтвердить), 
                     // ИСКЛЮЧАЯ нашу умную форму ввода результатов, которая умеет работать офлайн
-                    const postForms = document.querySelectorAll('form[method="post"]:not(#result-submission-form)');
+                    const postForms = document.querySelectorAll('form[method="post"]:not(#result-form)');
                     postForms.forEach(form => {
 
                         // --- НОВОЕ: Глобальная сигнализация об изменении данных ---

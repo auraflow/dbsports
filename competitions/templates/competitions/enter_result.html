@@ -137,6 +137,7 @@
         const STAGE_ID = "{{ stage.id }}";
         const CSRF_TOKEN = "{{ csrf_token }}";
 
+
         // Функция получения CSRF токена из куки браузера
         function getCookie(name) {
             let cookieValue = null;
@@ -154,7 +155,8 @@
         }
 
         function getStorageKey() {
-            return `offline_results_stage_${STAGE_ID}`;
+            // Добавили ID текущего пользователя в название сейфа
+            return `offline_results_stage_${STAGE_ID}_user_{{ request.user.id }}`;
         }
 
         function getLocalRecords() {

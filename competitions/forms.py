@@ -96,11 +96,23 @@ class ParticipantForm(forms.ModelForm):
 class StageForm(forms.ModelForm):
     class Meta:
         model = Stage
-        fields = ['name', 'type']
+        # НОВОЕ: Добавляем поле judges в форму
+        fields = ['name', 'type', 'judges']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Например: Полоса препятствий, Подтягивания'}),
             'type': forms.Select(attrs={'class': 'form-select'}),
+            # НОВОЕ: Виджет множественного выбора судей
+            'judges': forms.SelectMultiple(attrs={'class': 'form-select', 'size': '4'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # УМНЫЙ ФИЛЬТР: Выводим в список только пользователей с ролью "Судья"
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.fields['judges'].queryset = User.objects.filter(role__role_name='Судья')
+        self.fields['judges'].required = False  # Этап можно создать и без судей (назначить позже)
+        self.fields['judges'].label = 'Назначенные судьи (зажмите Ctrl для выбора нескольких)'
 
 class TeamForm(forms.ModelForm):
     class Meta:

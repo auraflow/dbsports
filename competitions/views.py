@@ -144,7 +144,14 @@ def logout_view(request):
 @login_required
 def stage_list(request):
     """Выбор активного этапа для судейства"""
-    stages = Stage.objects.filter(competition__is_archived=False).select_related('competition', 'type').order_by('competition__title', 'id')
+    qs = Stage.objects.filter(competition__is_archived=False).select_related('competition', 'type')
+
+    # УМНАЯ ФИЛЬТРАЦИЯ: Полевой судья видит ТОЛЬКО свои этапы
+    if not request.user.is_superuser and request.user.role:
+        if request.user.role.role_name == 'Судья':
+            qs = qs.filter(judges=request.user)
+
+    stages = qs.order_by('competition__title', 'id')
     return render(request, 'competitions/stage_list.html', {'stages': stages})
 
 @login_required
@@ -212,8 +219,9 @@ def enter_result(request, stage_id):
     # 2. Передаем в шаблон только тех, кто еще НЕ сдавал этот этап
     participants = Participant.objects.filter(competition=stage.competition).exclude(id__in=already_submitted_ids).order_by('full_name')
     
-    # 3. Выборка результатов для таблицы (судья видит только свои записи, сортировка от новых к старым)
-    results = Result.objects.filter(stage=stage, judge=request.user).order_by('-id')
+    # 3. Выборка результатов для таблицы (теперь показываем ВСЕ результаты этапа)
+    # Добавили select_related для оптимизации базы данных
+    results = Result.objects.filter(stage=stage).select_related('participant', 'judge').order_by('-id')
     
     return render(request, 'competitions/enter_result.html', {
         'stage': stage, 
@@ -224,14 +232,27 @@ def enter_result(request, stage_id):
 @login_required
 @archive_lock
 def edit_result(request, result_id):
-    """Редактирование результата Полевым судьей (только до верификации)"""
-    # --- ЗАЩИТА: Рядовой судья может редактировать ТОЛЬКО свои записи ---
-    if request.user.is_superuser:
-        result = get_object_or_404(Result, pk=result_id)
-    else:
-        result = get_object_or_404(Result, pk=result_id, judge=request.user)
-    # --------------------------------------------------------------------
-    stage_id = result.stage.id
+    """Редактирование результата (совместный доступ для судей этапа)"""
+    # 1. Получаем результат без жесткой привязки к автору
+    result = get_object_or_404(Result, pk=result_id)
+    stage = result.stage
+    comp = stage.competition
+    
+    # === УМНАЯ ЗАЩИТА ПРАВ ДОСТУПА ===
+    is_super = request.user.is_superuser
+    is_owner = (comp.created_by == request.user)
+    is_chief = (comp.chief_judge == request.user)
+    is_author = (result.judge == request.user)
+    # Проверяем, назначен ли текущий пользователь судить этот конкретный этап
+    is_assigned = stage.judges.filter(id=request.user.id).exists()
+    
+    # Если ни одно из условий не выполнено — блокируем доступ (защита от хакеров)
+    if not (is_super or is_owner or is_chief or is_author or is_assigned):
+        messages.error(request, "У вас нет прав для редактирования результатов на этом этапе.")
+        return redirect('dashboard')
+    # =================================
+
+    stage_id = stage.id
 
     # ЗАЩИТА БИЗНЕС-ЛОГИКИ: Блокируем редактирование проверенных результатов
     if result.is_verified:
@@ -982,6 +1003,12 @@ def offline_manifest(request):
 
     # 6. Собираем ссылки на формы судейства и турнирные таблицы
     stages = Stage.objects.filter(competition__is_archived=False)
+
+    # --- НОВОЕ: Ограничиваем паука, чтобы он качал только разрешенные этапы ---
+    if user_role == "Судья":
+        stages = stages.filter(judges=request.user)
+    # -------------------------------------------------------------------------
+
     for stage in stages:
         # Формы ввода и лидерборды доступны и кэшируются всеми (включая рядовых полевых судей)
         urls.append(reverse('enter_result', kwargs={'stage_id': stage.id}))

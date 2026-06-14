@@ -86,6 +86,14 @@ class Stage(models.Model):
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, related_name='stages')
     name = models.CharField(max_length=200)
     type = models.ForeignKey(StageType, on_delete=models.PROTECT)
+    
+    # === НОВОЕ ПОЛЕ: Назначенные полевые судьи ===
+    judges = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, 
+        blank=True, 
+        related_name='assigned_stages',
+        verbose_name='Назначенные судьи'
+    )
 
     def __str__(self):
         return f"{self.competition.title} - {self.name}"
