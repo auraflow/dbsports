@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseForbidden
 from django.contrib.auth import logout
 from django.views.decorators.http import require_POST
-from django.db.models import ProtectedError
+from django.db.models import ProtectedError, Q 
 from django.contrib import messages
 from django.http import JsonResponse
 from django.urls import reverse
@@ -68,8 +68,55 @@ def archive_lock(view_func):
 
         # Если турнир найден и он в архиве — выгоняем пользователя
         if comp and comp.is_archived:
-            messages.error(request, f"🔒 Отказано в доступе: Соревнование «{comp.title}» находится в Архиве. Любые изменения данных заморожены!")
+            # ЗАЩИТА PWA: Если это фоновый AJAX запрос, возвращаем JSON с 400 статусом, чтобы телефон удалил кэш
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': 'Турнир в архиве. Прием данных закрыт.'}, status=400)
+                
+            messages.error(request, f"🔒 Отказано в доступе: Соревнование «{comp.title}» находится в Архиве.")
             return redirect('dashboard')
+            
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
+def owner_lock(view_func):
+    """
+    Декоратор безопасности (Защита от IDOR): 
+    Блокирует доступ к турниру и его элементам, если пользователь не является его создателем.
+    Суперпользователь имеет доступ ко всем турнирам.
+    """
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        # Суперпользователю можно всё
+        if request.user.is_superuser:
+            return view_func(request, *args, **kwargs)
+            
+        comp = None
+        # Умный поиск соревнования по любому ID из URL
+        if 'comp_id' in kwargs:
+            comp = get_object_or_404(Competition, pk=kwargs['comp_id'])
+        elif 'stage_id' in kwargs:
+            comp = get_object_or_404(Stage, pk=kwargs['stage_id']).competition
+        elif 'team_id' in kwargs:
+            comp = get_object_or_404(Team, pk=kwargs['team_id']).competition
+        elif 'part_id' in kwargs:
+            comp = get_object_or_404(Participant, pk=kwargs['part_id']).competition
+        elif 'result_id' in kwargs:
+            comp = get_object_or_404(Result, pk=kwargs['result_id']).stage.competition
+        elif 'member_id' in kwargs:
+            comp = get_object_or_404(TeamMember, pk=kwargs['member_id']).team.competition
+
+        # Если соревнование найдено, проверяем права доступа
+        if comp:
+            is_creator = (comp.created_by == request.user)
+            is_assigned_chief = (comp.chief_judge == request.user)
+            
+            # Доступ разрешен создателю турнира ИЛИ назначенному Главному судье (Суперпользователю можно всё)
+            if not (is_creator or is_assigned_chief or request.user.is_superuser):
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'error': 'Отказано в доступе: вы не привязаны к этому турниру.'}, status=400)
+                    
+                messages.error(request, "🛑 Отказано в доступе: Вы не являетесь организатором или главным судьей этого турнира.")
+                return redirect('dashboard')
             
         return view_func(request, *args, **kwargs)
     return _wrapped_view
@@ -106,69 +153,84 @@ def enter_result(request, stage_id):
     """Интерфейс ввода результатов участникам с поддержкой AJAX и офлайн-синхронизации"""
     stage = get_object_or_404(Stage, pk=stage_id)
     
+    # ЗАЩИТА: Блокировка ввода, если турнир находится в архиве
+    if stage.competition.is_archived:
+        messages.error(request, "Соревнование архивировано. Ввод результатов невозможен.")
+        return redirect('stage_list')
+
     if request.method == 'POST':
-        form = ResultForm(request.POST)
-        # Проверяем, является ли запрос AJAX-запросом (через кастомный заголовок)
+        # Проверяем, является ли запрос AJAX-запросом (от нашего PWA-скрипта)
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
+        # Получаем данные из запроса
+        form = ResultForm(request.POST)
         
         if form.is_valid():
             result = form.save(commit=False)
-            
-            # ЗАЩИТА: Запрет на дублирование результатов
+                        
+            # ЗАЩИТА: Запрет на дублирование результатов (Race Condition)
             if Result.objects.filter(participant=result.participant, stage=stage).exists():
                 if is_ajax:
                     return JsonResponse({'success': False, 'error': 'Результат для этого участника уже зафиксирован!'}, status=400)
                 form.add_error('participant', 'Результат для этого участника уже зафиксирован!')
             else:
                 result.stage = stage
+                
+                # === ЗАЩИТА ОТ ПОДМЕНЫ ПОЛЕЙ (Mass Assignment) ===
                 result.judge = request.user
+                result.is_verified = False # ЖЕСТКО сбрасываем статус
+                # ==================================================
+                
                 result.save()
                 
+                # Логируем действие для Организатора
                 AuditLog.objects.create(
                     user=request.user,
-                    competition=result.participant.competition,
+                    competition=stage.competition,
                     action="Ввод результата",
                     details=f"Судья зафиксировал результат для {result.participant.full_name} на этапе «{stage.name}»: {result.value}."
                 )
                 
-                # Если это был AJAX, возвращаем данные нового результата для динамического добавления в таблицу
+                # Если это был AJAX, просто подтверждаем успех (JS сам отрисует строку)
                 if is_ajax:
-                    return JsonResponse({
-                        'success': True,
-                        'result': {
-                            'id': result.id,
-                            'participant_id': result.participant.id,
-                            'participant_name': result.participant.full_name,
-                            'value': str(result.value),
-                            'penalty_value': str(result.penalty_value),
-                            'is_verified': result.is_verified
-                        }
-                    })
+                    return JsonResponse({'success': True})
                 
+                # Если это обычная отправка (без JS), перезагружаем страницу
                 messages.success(request, f"Результат для {result.participant.full_name} успешно записан!")
                 return redirect('enter_result', stage_id=stage.id)
         else:
             if is_ajax:
                 return JsonResponse({'success': False, 'error': 'Некорректные данные формы. Проверьте значения.'}, status=400)
-    else:
-        form = ResultForm()
-        
-        # Умный выпадающий список: исключаем тех, кто уже прошел этап
-        completed_participant_ids = Result.objects.filter(stage=stage).values_list('participant_id', flat=True)
-        form.fields['participant'].queryset = stage.competition.participants.exclude(
-            id__in=completed_participant_ids
-        ).order_by('full_name')
-        
-    recent_results = Result.objects.filter(stage=stage).order_by('-created_at')[:10]
+
+    # ==========================================
+    # ОБРАБОТКА GET-ЗАПРОСА (Отрисовка страницы)
+    # ==========================================
+    
+    # 1. Прямая и безопасная выборка ID спортсменов (исправляет баг с выпадающим списком после удаления)
+    already_submitted_ids = Result.objects.filter(stage=stage).values_list('participant_id', flat=True)
+    
+    # 2. Передаем в шаблон только тех, кто еще НЕ сдавал этот этап
+    participants = Participant.objects.filter(competition=stage.competition).exclude(id__in=already_submitted_ids).order_by('full_name')
+    
+    # 3. Выборка результатов для таблицы (судья видит только свои записи, сортировка от новых к старым)
+    results = Result.objects.filter(stage=stage, judge=request.user).order_by('-id')
+    
     return render(request, 'competitions/enter_result.html', {
-        'stage': stage, 'form': form, 'results': recent_results
+        'stage': stage, 
+        'participants': participants, 
+        'results': results
     })
 
 @login_required
 @archive_lock
 def edit_result(request, result_id):
     """Редактирование результата Полевым судьей (только до верификации)"""
-    result = get_object_or_404(Result, pk=result_id)
+    # --- ЗАЩИТА: Рядовой судья может редактировать ТОЛЬКО свои записи ---
+    if request.user.is_superuser:
+        result = get_object_or_404(Result, pk=result_id)
+    else:
+        result = get_object_or_404(Result, pk=result_id, judge=request.user)
+    # --------------------------------------------------------------------
     stage_id = result.stage.id
 
     # ЗАЩИТА БИЗНЕС-ЛОГИКИ: Блокируем редактирование проверенных результатов
@@ -179,7 +241,17 @@ def edit_result(request, result_id):
     if request.method == 'POST':
         form = ResultForm(request.POST, instance=result)
         if form.is_valid():
-            form.save()
+            # === ЗАЩИТА ОТ ПОДМЕНЫ ПОЛЕЙ ===
+            # 1. Останавливаем прямое сохранение
+            safe_result = form.save(commit=False)
+            
+            # 2. Жестко перезаписываем критические поля
+            safe_result.judge = request.user  # Автором правки становится тот, кто ее внес
+            safe_result.is_verified = False   # Любая правка автоматически снимает верификацию!
+            
+            # 3. Теперь сохраняем в базу
+            safe_result.save()
+            # ===============================
             AuditLog.objects.create(
                 user=request.user,
                 competition=result.participant.competition,
@@ -211,10 +283,21 @@ def stage_leaderboard(request, stage_id):
 # ==========================================
 
 @login_required
-@chief_judge_required
+@chief_judge_required  # Используем твою переменную-декоратор для защиты доступа
 def chief_stage_list(request):
-    """Список этапов для проверки Главным судьей"""
-    stages = Stage.objects.filter(competition__is_archived=False).select_related('competition').order_by('competition__title', 'id')
+    """
+    Список этапов для верификации (Multi-tenant):
+    Организатор видит этапы СВОИХ турниров, Главный судья — тех, куда он НАЗНАЧЕН.
+    """
+    if request.user.is_superuser:
+        stages = Stage.objects.filter(competition__is_archived=False)
+    else:
+        # Умная фильтрация через Q-объект:
+        # Выбираем этапы, где создатель турнира текущий пользователь ИЛИ он же назначен Главным судьей
+        stages = Stage.objects.filter(competition__is_archived=False).filter(
+            Q(competition__created_by=request.user) | Q(competition__chief_judge=request.user)
+        ).distinct() # .distinct() исключит дубли, если организатор назначил главным судьей самого себя
+        
     return render(request, 'competitions/chief_stage_list.html', {'stages': stages})
 
 @login_required
@@ -235,7 +318,7 @@ def verify_results_backend(request, stage_id):
     stage = get_object_or_404(Stage, pk=stage_id)
     action = request.POST.get('action')
     result_id = request.POST.get('result_id')
-    res = get_object_or_404(Result, pk=result_id)
+    res = get_object_or_404(Result, pk=result_id, stage=stage) # ✅ БЕЗОПАСНО
 
     if action == 'verify':
         res.is_verified = True
@@ -302,11 +385,17 @@ def verify_results_backend(request, stage_id):
 @login_required
 @organizer_required
 def organizer_competitions(request):
-    competitions = Competition.objects.filter(is_archived=False).order_by('-start_date')
+    qs = Competition.objects.filter(is_archived=False)
+    # Если это не супермен, показываем только его личные турниры
+    if not request.user.is_superuser:
+        qs = qs.filter(created_by=request.user)
+        
+    competitions = qs.order_by('-start_date')
     return render(request, 'competitions/organizer_list.html', {'competitions': competitions})
 
 @login_required
 @organizer_required
+@owner_lock
 @archive_lock
 def competition_panel(request, comp_id):
     """Хаб управления турниром"""
@@ -338,6 +427,7 @@ def create_competition(request):
 
 @login_required
 @organizer_required
+@owner_lock
 @archive_lock
 def edit_competition(request, comp_id):
     """ИСПРАВЛЕНИЕ: Функция для редактирования настроек турнира"""
@@ -357,6 +447,7 @@ def edit_competition(request, comp_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @archive_lock
 def manage_stages(request, comp_id):
     competition = get_object_or_404(Competition, pk=comp_id)
@@ -378,6 +469,7 @@ def manage_stages(request, comp_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @archive_lock
 def manage_participants(request, comp_id):
     competition = get_object_or_404(Competition, pk=comp_id)
@@ -399,6 +491,7 @@ def manage_participants(request, comp_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @archive_lock
 def manage_teams(request, comp_id):
     competition = get_object_or_404(Competition, pk=comp_id)
@@ -417,6 +510,7 @@ def manage_teams(request, comp_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @archive_lock
 def manage_team_members(request, team_id):
     team = get_object_or_404(Team, pk=team_id)
@@ -463,6 +557,7 @@ def manage_team_members(request, team_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @archive_lock
 def edit_participant(request, part_id):
     participant = get_object_or_404(Participant, pk=part_id)
@@ -485,6 +580,7 @@ def edit_participant(request, part_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @archive_lock
 def edit_stage(request, stage_id):
     stage = get_object_or_404(Stage, pk=stage_id)
@@ -501,6 +597,7 @@ def edit_stage(request, stage_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @archive_lock
 def edit_team(request, team_id):
     team = get_object_or_404(Team, pk=team_id)
@@ -521,6 +618,7 @@ def edit_team(request, team_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @require_POST
 @archive_lock
 def delete_competition(request, comp_id):
@@ -545,6 +643,7 @@ def delete_competition(request, comp_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @require_POST
 @archive_lock
 def delete_stage(request, stage_id):
@@ -563,6 +662,7 @@ def delete_stage(request, stage_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @require_POST
 @archive_lock
 def delete_participant(request, part_id):
@@ -581,6 +681,7 @@ def delete_participant(request, part_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @require_POST
 @archive_lock
 def delete_team(request, team_id):
@@ -599,6 +700,7 @@ def delete_team(request, team_id):
 
 @login_required
 @organizer_required
+@owner_lock
 @require_POST
 @archive_lock
 def delete_team_member(request, member_id):
@@ -672,6 +774,7 @@ def get_smart_summary(competition):
 
 @login_required
 @organizer_required
+@owner_lock
 def competition_summary(request, comp_id):
     competition = get_object_or_404(Competition, pk=comp_id)
     individual_summary, team_summary = get_smart_summary(competition)
@@ -684,6 +787,7 @@ def competition_summary(request, comp_id):
 
 @login_required
 @organizer_required
+@owner_lock
 def print_protocol(request, comp_id):
     competition = get_object_or_404(Competition, pk=comp_id)
     individual_summary, team_summary = get_smart_summary(competition)
@@ -696,6 +800,7 @@ def print_protocol(request, comp_id):
 
 @login_required
 @organizer_required
+@owner_lock
 def export_csv_report(request, comp_id):
     """Выгрузка СВОДНОГО отчета (Сумма мест) в Excel"""
     competition = get_object_or_404(Competition, pk=comp_id)
@@ -716,6 +821,7 @@ def export_csv_report(request, comp_id):
 
 @login_required
 @organizer_required
+@owner_lock
 def export_xlsx_report(request, comp_id):
     """Выгрузка СВОДНОГО отчета в настоящем формате Excel (.xlsx)"""
     competition = get_object_or_404(Competition, pk=comp_id)
@@ -752,6 +858,7 @@ def export_xlsx_report(request, comp_id):
 
 @login_required
 @organizer_required
+@owner_lock
 def export_excel(request, comp_id):
     """Выгрузка СЫРЫХ результатов всех этапов в Excel (Из Архива)"""
     comp = get_object_or_404(Competition, id=comp_id)
@@ -762,11 +869,16 @@ def export_excel(request, comp_id):
     writer.writerow(['ФИО Участника', 'Номер (Бейдж)', 'Название этапа', 'Результат', 'Штраф'])
     results = Result.objects.filter(participant__competition=comp, is_verified=True).select_related('participant', 'stage')
     for r in results:
-        writer.writerow([r.participant.full_name, r.participant.bib_number, r.stage.name, str(r.value).replace('.', ','), str(r.penalty_value).replace('.', ',')])
-    return response
+        val_str = str(r.value).replace('.', ',')
+        # Если штрафа нет (None), пишем '0', иначе превращаем точку в запятую
+        pen_val = r.penalty_value if r.penalty_value is not None else 0
+        pen_str = str(pen_val).replace('.', ',')
+        
+        writer.writerow([r.participant.full_name, r.participant.bib_number, r.stage.name, val_str, pen_str])
 
 @login_required
 @organizer_required
+@owner_lock
 @require_POST
 def toggle_archive(request, comp_id):
     comp = get_object_or_404(Competition, id=comp_id)
@@ -787,11 +899,18 @@ def toggle_archive(request, comp_id):
 @login_required
 @organizer_required
 def archive_list(request):
-    archived_comps = Competition.objects.filter(is_archived=True).order_by('-start_date')
+    qs = Competition.objects.filter(is_archived=True)
+    
+    # ЗАЩИТА: Показываем организатору только его личный архив
+    if not request.user.is_superuser:
+        qs = qs.filter(created_by=request.user)
+        
+    archived_comps = qs.order_by('-start_date')
     return render(request, 'competitions/archive_list.html', {'competitions': archived_comps})
 
 @login_required
 @organizer_required
+@owner_lock
 def archive_detail(request, comp_id):
     comp = get_object_or_404(Competition, id=comp_id, is_archived=True)
     stages = Stage.objects.filter(competition=comp).order_by('id')
@@ -802,49 +921,85 @@ def archive_detail(request, comp_id):
 @login_required
 @organizer_required
 def audit_log_list(request):
-    logs = AuditLog.objects.select_related('user', 'competition').all()[:200] 
+    qs = AuditLog.objects.select_related('user', 'competition')
+    
+    # ЗАЩИТА АУДИТА: Суперпользователь видит всё. 
+    # Остальные видят логи СВОИХ турниров ИЛИ логи СВОИХ действий (например, факт удаления).
+    if not request.user.is_superuser:
+        qs = qs.filter(
+            Q(competition__created_by=request.user) | Q(user=request.user)
+        )
+        
+    logs = qs.order_by('-timestamp')[:200]
     return render(request, 'competitions/audit_log.html', {'logs': logs})
 
 @login_required
 def offline_manifest(request):
     """
     Генератор списка всех доступных пользователю страниц для PWA предзагрузки.
-    Гарантирует, что в офлайн-режиме будут работать глубокие ссылки.
+    Умная генерация ссылок на основе ролей (Защита от AttributeError).
     """
+    # 1. БЕЗОПАСНОЕ извлечение роли (если роли нет, возвращаем пустую строку)
+    user_role = request.user.role.role_name if request.user.role else ""
+    is_super = request.user.is_superuser
+
+    # 2. Базовые URL для всех авторизованных (включая рядовых судей)
     urls = [
         reverse('dashboard'),
         reverse('stage_list'),
-        reverse('chief_stage_list'),
     ]
 
-    # Глобальные разделы для админов
-    if request.user.role.role_name == "Организатор" or request.user.is_superuser:
+    # 3. Разделы Главного судьи / Организатора (для верификации результатов)
+    # Организатор и Главный судья теперь оба предзагружают общую страницу верификации
+    if user_role in ["Главный судья", "Организатор"] or is_super:
+        urls.append(reverse('chief_stage_list'))
+
+    # 4. Глобальные разделы Организатора
+    if user_role == "Организатор" or is_super:
         urls.append(reverse('audit_log_list'))
         urls.append(reverse('archive_list'))
         urls.append(reverse('organizer_competitions'))
 
-    # Собираем ссылки для активных соревнований
+    # 5. Собираем динамические ссылки для активных соревнований
     competitions = Competition.objects.filter(is_archived=False)
     for comp in competitions:
-        urls.append(reverse('competition_summary', kwargs={'comp_id': comp.id}))
-        if request.user.role.role_name == "Организатор" or request.user.is_superuser:
-            urls.append(reverse('competition_panel', kwargs={'comp_id': comp.id}))
-            urls.append(reverse('manage_participants', kwargs={'comp_id': comp.id}))
-            urls.append(reverse('manage_stages', kwargs={'comp_id': comp.id}))
-            urls.append(reverse('manage_teams', kwargs={'comp_id': comp.id}))
+        is_owner = (comp.created_by == request.user)
+        is_assigned_chief = (comp.chief_judge == request.user)
+        
+        # Ссылку на Сводный отчет кэшируют только те, кто имеет отношение к турниру
+        if is_super or is_owner or is_assigned_chief:
+            urls.append(reverse('competition_summary', kwargs={'comp_id': comp.id}))
             
-            # Ссылки на команды (внутри турнира)
-            for team in comp.teams.all():
-                urls.append(reverse('manage_team_members', kwargs={'team_id': team.id}))
+            # Полная панель управления структурой доступна ТОЛЬКО Организаторам-создателям турнира
+            if is_super or (user_role == "Организатор" and is_owner):
+                urls.append(reverse('competition_panel', kwargs={'comp_id': comp.id}))
+                urls.append(reverse('manage_participants', kwargs={'comp_id': comp.id}))
+                urls.append(reverse('manage_stages', kwargs={'comp_id': comp.id}))
+                urls.append(reverse('manage_teams', kwargs={'comp_id': comp.id}))
+                
+                for team in comp.teams.all():
+                    urls.append(reverse('manage_team_members', kwargs={'team_id': team.id}))
 
-    # Собираем ссылки на формы судейства и турнирные таблицы
+    # 6. Собираем ссылки на формы судейства и турнирные таблицы
     stages = Stage.objects.filter(competition__is_archived=False)
     for stage in stages:
+        # Формы ввода и лидерборды доступны и кэшируются всеми (включая рядовых полевых судей)
         urls.append(reverse('enter_result', kwargs={'stage_id': stage.id}))
         urls.append(reverse('stage_leaderboard', kwargs={'stage_id': stage.id}))
-        if request.user.role.role_name in ["Главный судья", "Организатор", "Администратор"]:
+        
+        is_stage_owner = (stage.competition.created_by == request.user)
+        is_stage_chief = (stage.competition.chief_judge == request.user)
+        
+        # ЗАЩИТА ПАНЕЛИ ВЕРИФИКАЦИИ В КЭШЕ PWA:
+        # Организатор кэширует панели верификации только СВОИХ соревнований, 
+        # а назначенный Главный судья — только ТЕХ, за которые он отвечает.
+        if is_super:
+            urls.append(reverse('stage_verify_panel', kwargs={'stage_id': stage.id}))
+        elif user_role == "Организатор" and is_stage_owner:
+            urls.append(reverse('stage_verify_panel', kwargs={'stage_id': stage.id}))
+        elif user_role == "Главный судья" and is_stage_chief:
             urls.append(reverse('stage_verify_panel', kwargs={'stage_id': stage.id}))
 
-    # Убираем дубликаты
+    # Убираем дубликаты и возвращаем чистый JSON
     unique_urls = list(set(urls))
     return JsonResponse({'urls': unique_urls})

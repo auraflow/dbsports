@@ -1,6 +1,9 @@
 from django import forms
 from .models import Result, Competition, Participant, Stage, Team, TeamMember
 from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class ResultForm(forms.ModelForm):
     class Meta:
@@ -38,7 +41,7 @@ class CompetitionForm(forms.ModelForm):
     class Meta:
         model = Competition
         # Добавили новые поля в список
-        fields = ['title', 'start_date', 'type', 'status', 'has_individual', 'has_team']
+        fields = ['title', 'start_date', 'type', 'status', 'has_individual', 'has_team', 'chief_judge']
 
         # Переопределяем названия полей для интерфейса
         labels = {
@@ -54,6 +57,11 @@ class CompetitionForm(forms.ModelForm):
             'has_individual': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_team': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # В выпадающем списке показываем ТОЛЬКО пользователей с ролью Главного судьи
+        self.fields['chief_judge'].queryset = User.objects.filter(role__role_name='Главный судья')
 
     # ЗАЩИТА: Комплексная проверка логики соревнования
     def clean(self):

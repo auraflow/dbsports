@@ -56,6 +56,15 @@ class Competition(models.Model):
     has_individual = models.BooleanField(default=True, verbose_name='Проводить личный зачет')
     has_team = models.BooleanField(default=False, verbose_name='Проводить командный зачет')
     is_archived = models.BooleanField(default=False, verbose_name="В архиве")
+    # СВЯЗЫВАЕМ ТУРНИР С ЕГО ГЛАВНЫМ СУДЬЕЙ:
+    chief_judge = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='chief_competitions',
+        verbose_name='Главный судья соревнований'
+    )
 
     def __str__(self):
         return self.title
@@ -133,6 +142,15 @@ class Result(models.Model):
     comment = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_verified = models.BooleanField(default=False)
+
+    class Meta:
+        # ЗАЩИТА: Жесткий запрет на создание двух результатов для одного спортсмена на одном этапе
+        constraints = [
+            models.UniqueConstraint(
+                fields=['participant', 'stage'], 
+                name='unique_result_per_stage'
+            )
+        ]
 
     def __str__(self):
         return f"{self.participant.full_name} -> {self.stage.name}: {self.value}"

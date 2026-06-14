@@ -1,16 +1,20 @@
-const CACHE_NAME = 'dbsports-cache-v3'; // Версия 3
+const CACHE_NAME = 'dbsports-cache-v5'; // Обновляем версию для принудительной перезаписи
 
-// 1. Установка: сразу активируем и сохраняем стили
+// 1. Установка: сразу активируем и сохраняем критически важную статику
 self.addEventListener('install', event => {
     self.skipWaiting(); 
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => {
-            return cache.addAll(['/', '/static/css/style.css']);
+            return cache.addAll([
+                '/', 
+                '/static/css/style.css',
+                '/manifest.json'
+            ]);
         })
     );
 });
 
-// 2. Активация: захватываем контроль над страницей НЕМЕДЛЕННО и чистим старый кэш
+// 2. Активация: захватываем контроль и чистим старый кэш
 self.addEventListener('activate', event => {
     event.waitUntil(self.clients.claim()); 
     event.waitUntil(
@@ -24,10 +28,38 @@ self.addEventListener('activate', event => {
     );
 });
 
-// 3. Перехват запросов
+// 3. Перехват запросов (Двойная стратегия)
 self.addEventListener('fetch', event => {
+    // Игнорируем не-GET запросы и админку
     if (event.request.method !== 'GET' || event.request.url.includes('/admin/')) return;
 
+    const requestUrl = new URL(event.request.url);
+
+    // ВЕТКА А: Стратегия "Cache First" (Сначала кэш) для статики и внешних шрифтов
+    if (
+        requestUrl.pathname.startsWith('/static/') || 
+        requestUrl.pathname.includes('manifest.json') ||
+        requestUrl.hostname === 'fonts.googleapis.com' ||
+        requestUrl.hostname === 'fonts.gstatic.com'
+    ) {
+        event.respondWith(
+            caches.match(event.request, { ignoreVary: true }).then(cachedResponse => {
+                if (cachedResponse) return cachedResponse; // Мгновенная отдача из кэша
+                
+                // Если в кэше пусто (первый заход), качаем из сети и сохраняем
+                return fetch(event.request).then(networkResponse => {
+                    if (networkResponse.status === 200) {
+                        const clone = networkResponse.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    }
+                    return networkResponse;
+                });
+            })
+        );
+        return; // Прерываем выполнение, чтобы не сработала вторая ветка
+    }
+
+    // ВЕТКА Б: Стратегия "Network First" (Сначала сеть) для HTML-страниц
     event.respondWith(
         fetch(event.request)
             .then(response => {
@@ -38,12 +70,12 @@ self.addEventListener('fetch', event => {
                 return response;
             })
             .catch(() => {
-                // ВАЖНО: ignoreVary: true спасает от конфликта заголовков Django!
+                // Если сеть отвалилась, ищем сохраненную HTML-страницу в кэше
                 return caches.match(event.request, { ignoreVary: true })
                     .then(cachedResponse => {
                         if (cachedResponse) return cachedResponse;
                         
-                        // Если страницы всё же нет в кэше, отдаем красивую заглушку в стиле темной темы, а не ошибку браузера
+                        // Если страницы нет в кэше, отдаем красивую офлайн-заглушку
                         return new Response(
                             '<div style="font-family:sans-serif; text-align:center; background:#2b2b2b; color:#fff; height:100vh; padding-top:10vh;">' +
                             '<h2 style="color:#ffc107;">🌐 Нет связи с сервером</h2>' +

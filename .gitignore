@@ -20,3 +20,5 @@ db.sqlite3
 
 # Файл конфигурации для djLint
 .djlintrc
+
+.seed_db
