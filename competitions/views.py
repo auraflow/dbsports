@@ -451,17 +451,41 @@ def create_competition(request):
 @owner_lock
 @archive_lock
 def edit_competition(request, comp_id):
-    """ИСПРАВЛЕНИЕ: Функция для редактирования настроек турнира"""
+    """Редактирование настроек турнира с защитой моделей расчета этапов"""
     comp = get_object_or_404(Competition, pk=comp_id)
+    old_type_id = comp.type_id  # Запоминаем старую категорию до изменений
+    
     if request.method == 'POST':
         form = CompetitionForm(request.POST, instance=comp)
         if form.is_valid():
-            form.save()
+            updated_comp = form.save(commit=False)
+            type_changed = (old_type_id != updated_comp.type_id)
+            updated_comp.save()
+            
+            # --- УМНАЯ ЗАЩИТА АЛГОРИТМОВ ПРИ СМЕНЕ КАТЕГОРИИ ---
+            if type_changed:
+                reset_count = 0
+                for stage in updated_comp.stages.all():
+                    # Если меняется категория турнира, безопаснее всего сбросить 
+                    # все "хитрые" формулы на базовую нормализацию, чтобы не было крашей
+                    if stage.scoring_method != 'normalization':
+                        stage.scoring_method = 'normalization'
+                        stage.scoring_config = {}
+                        stage.save()
+                        reset_count += 1
+                        
+                if reset_count > 0:
+                    messages.warning(
+                        request, 
+                        f"⚠️ Внимание! Из-за смены категории турнира, у {reset_count} этапов алгоритм расчета был сброшен на базовую 'Линейную нормализацию'. Проверьте их настройки."
+                    )
+            # ---------------------------------------------------
+            
             AuditLog.objects.create(
-                user=request.user, competition=comp, action="Редактирование турнира",
-                details=f"Организатор обновил параметры турнира «{comp.title}»."
+                user=request.user, competition=updated_comp, action="Редактирование турнира",
+                details=f"Организатор обновил параметры турнира «{updated_comp.title}»."
             )
-            return redirect('competition_panel', comp_id=comp.id)
+            return redirect('competition_panel', comp_id=updated_comp.id)
     else:
         form = CompetitionForm(instance=comp)
     return render(request, 'competitions/create_competition.html', {'form': form, 'edit_mode': True})
@@ -473,7 +497,7 @@ def edit_competition(request, comp_id):
 def manage_stages(request, comp_id):
     competition = get_object_or_404(Competition, pk=comp_id)
     if request.method == 'POST':
-        form = StageForm(request.POST)
+        form = StageForm(request.POST, competition=competition)
         if form.is_valid():
             stage = form.save(commit=False)
             stage.competition = competition
@@ -484,7 +508,7 @@ def manage_stages(request, comp_id):
             )
             return redirect('manage_stages', comp_id=competition.id)
     else:
-        form = StageForm()
+        form = StageForm(competition=competition)
     stages = competition.stages.all().select_related('type')
     return render(request, 'competitions/manage_stages.html', {'competition': competition, 'form': form, 'stages': stages})
 
@@ -606,15 +630,16 @@ def edit_participant(request, part_id):
 def edit_stage(request, stage_id):
     stage = get_object_or_404(Stage, pk=stage_id)
     if request.method == 'POST':
-        form = StageForm(request.POST, instance=stage)
+        form = StageForm(request.POST, instance=stage, competition=stage.competition)
         if form.is_valid():
             form.save()
             AuditLog.objects.create(user=request.user, competition=stage.competition, action="Редактирование", details=f"Изменено название этапа: {stage.name}")
             messages.success(request, f"Этап {stage.name} успешно обновлен.")
             return redirect('manage_stages', comp_id=stage.competition.id)
     else:
-        form = StageForm(instance=stage)
-    return render(request, 'competitions/generic_edit.html', {'form': form, 'title': 'Редактирование этапа'})
+        form = StageForm(instance=stage, competition=stage.competition)
+    # ИСПРАВЛЕНИЕ: Теперь используем специализированный шаблон вместо generic_edit.html
+    return render(request, 'competitions/edit_stage.html', {'form': form, 'stage': stage, 'title': 'Редактирование этапа'})
 
 @login_required
 @organizer_required
@@ -738,8 +763,8 @@ def delete_team_member(request, member_id):
 
 def get_smart_summary(competition):
     """
-    ИСПРАВЛЕНИЕ МАТЕМАТИКИ: Суммируем МЕСТА, занятые спортсменом на этапах.
-    Чем меньше сумма мест, тем выше спортсмен в турнирной таблице.
+    Сборка итоговой таблицы на основе заработанных БАЛЛОВ (Math Engine).
+    Чем больше баллов, тем выше место.
     """
     individual_summary = []
     team_summary = []
@@ -747,30 +772,51 @@ def get_smart_summary(competition):
     participants = competition.participants.all()
     stages = competition.stages.all()
     
-    # ИСПРАВЛЕНИЕ: Вернули ключ 'final_score', который ждут твои HTML-шаблоны
+    # 1. Инициализируем базовую структуру для каждого спортсмена
     p_scores = {
         p.id: {
             'participant': p, 
-            'final_score': 0,  # <-- Раньше тут было 'total_places'
+            'final_score': 0, 
             'total_penalty': 0, 
-            'has_results': False
+            'has_results': False,
+            'stages': {}  # <--- ИСПРАВЛЕНИЕ: Добавили пустой словарь для хранения этапов
         } for p in participants
     }
     
-    # 1. Расчет личного зачета по сумме занятых мест
+    # 2. Расчет личного зачета по сумме БАЛЛОВ
     for stage in stages:
+        # Получаем данные из нашего Math Engine (ScoringFactory)
         standings = calculate_stage_standings(stage.id)
+        
         for row in standings:
             p_id = row['participant'].id
-            p_scores[p_id]['final_score'] += row['place'] # Плюсуем занятое место
+            
+            p_scores[p_id]['final_score'] += row['points'] 
             p_scores[p_id]['total_penalty'] += row['penalty']
             p_scores[p_id]['has_results'] = True
+            
+            # Теперь KeyError здесь не возникнет
+            p_scores[p_id]['stages'][stage.id] = {
+                'value': row['original_value'],
+                'points': row['points'],
+                'place': row['place']
+            }
 
+    # Сортировка личного зачета: 
+    # сначала те, у кого есть результаты, затем по УБЫВАНИЮ баллов (минус перед x['final_score'])
     individual_summary = list(p_scores.values())
-    # Сортировка: сначала те, у кого есть результаты, затем по наименьшей сумме мест
-    individual_summary.sort(key=lambda x: (not x['has_results'], x['final_score']))
+    individual_summary.sort(key=lambda x: (not x['has_results'], -x['final_score']))
 
-    # 2. Расчет командного зачета
+    # --- ДОБАВЛЯЕМ ЭТОТ БЛОК РАСЧЕТА МЕСТ ---
+    for i, row in enumerate(individual_summary):
+        if not row['has_results']:
+            row['place'] = '-'
+        elif i > 0 and row['final_score'] == individual_summary[i-1]['final_score']:
+            row['place'] = individual_summary[i-1]['place'] # Дублируем место при равенстве баллов
+        else:
+            row['place'] = i + 1
+
+    # 3. Расчет командного зачета
     if competition.has_team:
         teams = competition.teams.prefetch_related('members__participant').all()
         for team in teams:
@@ -787,8 +833,18 @@ def get_smart_summary(competition):
                 'members_count': members_count,
                 'team_score': team_score
             })
-        # Сортировка команд по наименьшей сумме мест участников
-        team_summary.sort(key=lambda x: (x['members_count'] == 0, x['team_score'] == 0, x['team_score']))
+            
+        # Сортировка команд: пустые команды вниз, остальные по УБЫВАНИЮ баллов
+        team_summary.sort(key=lambda x: (x['members_count'] == 0, -x['team_score']))
+
+        # --- ДОБАВЛЯЕМ ЭТОТ БЛОК РАСЧЕТА МЕСТ ДЛЯ КОМАНД ---
+        for i, row in enumerate(team_summary):
+            if row['members_count'] == 0:
+                row['place'] = '-'
+            elif i > 0 and row['team_score'] == team_summary[i-1]['team_score']:
+                row['place'] = team_summary[i-1]['place'] # Дублируем место при равенстве
+            else:
+                row['place'] = i + 1
 
     return individual_summary, team_summary
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dbsports-cache-v5'; // Обновляем версию для принудительной перезаписи
+const CACHE_NAME = 'dbsports-cache-v6'; // Обновляем версию для принудительной перезаписи
 
 // 1. Установка: сразу активируем и сохраняем критически важную статику
 self.addEventListener('install', event => {

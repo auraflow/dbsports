@@ -1,6 +1,7 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from django.views.generic import TemplateView
+from django.http import HttpResponse
 from . import views
 
 urlpatterns = [
@@ -8,6 +9,8 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='competitions/login.html', redirect_authenticated_user=True), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('manifest.json', TemplateView.as_view(template_name='manifest.json', content_type='application/json'), name='manifest.json'),
+    # --- МАРШРУТ ДЛЯ ПИНГА СЕРВЕРА ---
+    path('ping/', lambda request: HttpResponse("OK"), name='ping'),
 
     # Регистрация Service Worker как JavaScript файла
     path('sw.js', TemplateView.as_view(template_name='sw.js', content_type='application/javascript'), name='sw.js'),

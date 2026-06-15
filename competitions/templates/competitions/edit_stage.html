@@ -1,0 +1,142 @@
+{% extends "competitions/components/base.html" %}
+{% block title %}Редактирование этапа{% endblock title %}
+{% block content %}
+    <div class="mb-3 no-print">
+        <a href="{% url 'manage_stages' stage.competition.id %}"
+           class="btn btn-sm btn-outline-light smart-back">← Отмена</a>
+    </div>
+    <div class="card mb-4 border-warning shadow-sm">
+        <div class="card-body py-4">
+            <h2 class="mb-2 text-warning">✏️ Редактирование этапа</h2>
+            <p class="text-muted mb-4">Этап: <strong>{{ stage.name }}</strong></p>
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label text-muted small mb-1">{{ form.name.label }}</label>
+                    {{ form.name }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small mb-1">{{ form.type.label }}</label>
+                    {{ form.type }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small mb-1">{{ form.judges.label }}</label>
+                    {{ form.judges }}
+                    <div class="form-text text-muted small">Удерживайте Ctrl для выбора нескольких судей.</div>
+                </div>
+                <hr class="border-secondary my-4">
+                <h5 class="text-warning mb-3">Правила расчета баллов</h5>
+                <div class="mb-3">
+                    {{ form.scoring_method }}
+                    <div id="info-normalization"
+                         class="info-group d-none alert alert-info py-2 small mt-2 mb-0 shadow-sm border-0">
+                        <strong>ℹ️ Линейная нормализация (0-100)</strong>
+                        <br>
+                        Система сама найдет лучший и худший результаты. Лучший автоматически получит 100 баллов, худший — 0 баллов. Остальные получат баллы пропорционально своему результату.
+                    </div>
+                    <div id="info-crossfit"
+                         class="info-group d-none alert alert-info py-2 small mt-2 mb-0 shadow-sm border-0">
+                        <strong>ℹ️ Очки за места (CrossFit)</strong>
+                        <br>
+                        Сами секунды и метры не важны, важен только порядок финиша. За 1-е место дается 100 баллов, за 2-е — 95, за 3-е — 90 и т.д.
+                    </div>
+                    <div id="info-multiplier"
+                         class="info-group d-none alert alert-info py-2 small mt-2 mb-0 shadow-sm border-0">
+                        <strong>ℹ️ Кастомный множитель</strong>
+                        <br>
+                        Вы сами задаете "цену" одной единицы результата (метра, секунды, раза). Итоговые баллы = Результат × Множитель.
+                    </div>
+                    <div id="info-iaaf"
+                         class="info-group d-none alert alert-info py-2 small mt-2 mb-0 shadow-sm border-0">
+                        <strong>ℹ️ Официальная формула IAAF</strong>
+                        <br>
+                        Сложная степенная формула из Олимпийских правил. Требует ввода констант A, B и C из официального регламента.
+                    </div>
+                    <div id="info-fina"
+                         class="info-group d-none alert alert-info py-2 small mt-2 mb-0 shadow-sm border-0">
+                        <strong>ℹ️ Очки FINA (Плавание)</strong>
+                        <br>
+                        Олимпийская система привязки результата к мировому рекорду на дистанции. Формула: 1000 × (Рекорд / Ваше Время)³.
+                    </div>
+                    <div id="info-sinclair"
+                         class="info-group d-none alert alert-info py-2 small mt-2 mb-0 shadow-sm border-0">
+                        <strong>ℹ️ Формула Синклера (Тяжелая атлетика)</strong>
+                        <br>
+                        Уравнивает шансы штангистов разных весовых категорий. Результат спортсмена умножается на сложный коэффициент, зависящий от его собственного веса (указанного в профиле участника).
+                    </div>
+                </div>
+                <div id="config-multiplier"
+                     class="config-group d-none bg-dark p-3 rounded border border-secondary mb-3">
+                    <p class="text-muted small mb-2">Укажите, сколько баллов дается за 1 единицу (метр, секунду, раз).</p>
+                    <label class="form-label text-muted small mb-1">{{ form.multiplier_val.label }}</label>
+                    {{ form.multiplier_val }}
+                </div>
+                <div id="config-iaaf"
+                     class="config-group d-none bg-dark p-3 rounded border border-secondary mb-3">
+                    <p class="text-muted small mb-2">Официальные константы из таблиц многоборья.</p>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label text-muted small mb-1">A</label>
+                            {{ form.iaaf_a }}
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label text-muted small mb-1">B</label>
+                            {{ form.iaaf_b }}
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label text-muted small mb-1">C</label>
+                            {{ form.iaaf_c }}
+                        </div>
+                    </div>
+                </div>
+                <div id="config-fina"
+                     class="config-group d-none bg-dark p-3 rounded border border-secondary mb-3">
+                    <p class="text-muted small mb-2">Введите текущий мировой рекорд для этой дистанции (в секундах). Например, для 100м в/с это 46.86.</p>
+                    <label class="form-label text-muted small mb-1">{{ form.fina_base.label }}</label>
+                    {{ form.fina_base }}
+                </div>
+                <div id="config-sinclair"
+                     class="config-group d-none bg-dark p-3 rounded border border-secondary mb-3">
+                    <p class="text-muted small mb-2">Введите коэффициенты Синклера для текущего Олимпийского цикла.</p>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">Константа A</label>
+                            {{ form.sinclair_a }}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">Базовый вес B</label>
+                            {{ form.sinclair_b }}
+                        </div>
+                    </div>
+                </div>
+                <button type="submit"
+                        class="btn btn-warning w-100 mt-3 fw-bold requires-network">💾 Сохранить изменения</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const methodSelect = document.getElementById('id_scoring_method');
+            const configGroups = document.querySelectorAll('.config-group');
+            const infoGroups = document.querySelectorAll('.info-group');
+
+            function toggleFields() {
+                configGroups.forEach(el => el.classList.add('d-none'));
+                infoGroups.forEach(el => el.classList.add('d-none'));
+
+                const selected = methodSelect.value;
+
+                const activeConfig = document.getElementById('config-' + selected);
+                if (activeConfig) activeConfig.classList.remove('d-none');
+
+                const activeInfo = document.getElementById('info-' + selected);
+                if (activeInfo) activeInfo.classList.remove('d-none');
+            }
+
+            if (methodSelect) {
+                toggleFields();
+                methodSelect.addEventListener('change', toggleFields);
+            }
+        });
+    </script>
+{% endblock content %}

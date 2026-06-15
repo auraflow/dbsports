@@ -83,9 +83,33 @@ class StageType(models.Model):
 
 # 6. Этапы соревнований
 class Stage(models.Model):
+    # --- НОВОЕ: Реестр доступных алгоритмов ---
+    class ScoringMethods(models.TextChoices):
+        CROSSFIT = 'crossfit', 'Очки за места (CrossFit - 100, 95, 90...)'
+        NORMALIZATION = 'normalization', 'Линейная нормализация (Баллы 0-100)'
+        MULTIPLIER = 'multiplier', 'Кастомный множитель (Своя цена за единицу)'
+        IAAF = 'iaaf', 'Официальная формула IAAF (Многоборье)'
+        FINA = 'fina', 'Очки FINA (Плавание)'
+        SINCLAIR = 'sinclair', 'Коэффициент Синклера (Тяжелая атлетика)'
+    # ------------------------------------------
+
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, related_name='stages')
     name = models.CharField(max_length=200)
     type = models.ForeignKey(StageType, on_delete=models.PROTECT)
+
+    # --- НОВЫЕ ПОЛЯ ДЛЯ MATH ENGINE ---
+    scoring_method = models.CharField(
+        max_length=50, 
+        choices=ScoringMethods.choices, 
+        default=ScoringMethods.NORMALIZATION,
+        verbose_name='Алгоритм подсчета баллов'
+    )
+    scoring_config = models.JSONField(
+        default=dict, 
+        blank=True, 
+        verbose_name='Настройки алгоритма (JSON)'
+    )
+    # ----------------------------------
     
     # === НОВОЕ ПОЛЕ: Назначенные полевые судьи ===
     judges = models.ManyToManyField(
@@ -111,6 +135,7 @@ class Participant(models.Model):
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, related_name='participants')
     full_name = models.CharField(max_length=150)
     bib_number = models.CharField(max_length=20, blank=True, null=True, verbose_name='Стартовый номер')
+    weight_kg = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name='Собственный вес (кг)')
 
     class Meta:
         # Защита от дублирования стартовых номеров в рамках одного соревнования

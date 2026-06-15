@@ -94,25 +94,114 @@ class ParticipantForm(forms.ModelForm):
         return str(bib).strip()
 
 class StageForm(forms.ModelForm):
+    # Виртуальные поля для настроек (не идут напрямую в БД)
+    multiplier_val = forms.DecimalField(required=False, label="Множитель результата", initial=1.0)
+    iaaf_a = forms.FloatField(required=False, label="IAAF Константа A (например, 25.43)")
+    iaaf_b = forms.FloatField(required=False, label="IAAF Константа B (например, 18.0)")
+    iaaf_c = forms.FloatField(required=False, label="IAAF Константа C (например, 1.81)")
+
+    # НОВОЕ ПОЛЕ ДЛЯ ПЛАВАНИЯ
+    fina_base = forms.FloatField(required=False, label="Рекордное время (Base Time в сек)")
+
+    # НОВЫЕ ПОЛЯ СИНКЛЕРА
+    sinclair_a = forms.FloatField(required=False, label="Синклер Константа A (например, 0.7519)")
+    sinclair_b = forms.FloatField(required=False, label="Синклер Константа B (например, 175.5)")
+    
     class Meta:
         model = Stage
-        # НОВОЕ: Добавляем поле judges в форму
-        fields = ['name', 'type', 'judges']
+        fields = ['name', 'type', 'judges', 'scoring_method']
         widgets = {
-            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Например: Полоса препятствий, Подтягивания'}),
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
             'type': forms.Select(attrs={'class': 'form-select'}),
-            # НОВОЕ: Виджет множественного выбора судей
             'judges': forms.SelectMultiple(attrs={'class': 'form-select', 'size': '4'}),
+            'scoring_method': forms.Select(attrs={'class': 'form-select', 'id': 'id_scoring_method'}),
         }
 
     def __init__(self, *args, **kwargs):
+        # 1. Извлекаем competition из переданных аргументов
+        competition = kwargs.pop('competition', None)
         super().__init__(*args, **kwargs)
-        # УМНЫЙ ФИЛЬТР: Выводим в список только пользователей с ролью "Судья"
+
+        # 2. Оставляем только судей в списке (твоя старая логика)
         from django.contrib.auth import get_user_model
         User = get_user_model()
         self.fields['judges'].queryset = User.objects.filter(role__role_name='Судья')
-        self.fields['judges'].required = False  # Этап можно создать и без судей (назначить позже)
-        self.fields['judges'].label = 'Назначенные судьи (зажмите Ctrl для выбора нескольких)'
+        self.fields['judges'].required = False
+
+        # 3. Распаковка JSON при РЕДАКТИРОВАНИИ
+        if self.instance and self.instance.pk:
+            config = self.instance.scoring_config or {}
+            method = self.instance.scoring_method
+            
+            if method == 'multiplier':
+                self.initial['multiplier_val'] = config.get('value_multiplier', 1)
+            elif method == 'iaaf':
+                self.initial['iaaf_a'] = config.get('a', '')
+                self.initial['iaaf_b'] = config.get('b', '')
+                self.initial['iaaf_c'] = config.get('c', '')
+            # ДОБАВИЛИ РАСПАКОВКУ ДЛЯ ПЛАВАНИЯ
+            elif method == 'fina':
+                self.initial['fina_base'] = config.get('base_time', '')
+            elif method == 'sinclair':
+                self.initial['sinclair_a'] = config.get('sinclair_a', '')
+                self.initial['sinclair_b'] = config.get('sinclair_b', '')
+
+        # 4. Динамическая фильтрация алгоритмов по типу соревнования
+        allowed_methods = [
+            ('normalization', 'Линейная нормализация (Баллы 0-100)'),
+            ('crossfit', 'Очки за места (CrossFit)'),
+            ('multiplier', 'Кастомный множитель'),
+        ]
+        
+        if competition and competition.type:
+            comp_category = competition.type.type_name.lower()
+            if 'атлетика' in comp_category or 'многоборье' in comp_category:
+                if 'тяжелая' in comp_category or 'пауэрлифтинг' in comp_category or 'гиревой' in comp_category:
+                    allowed_methods.append(('sinclair', 'Коэффициент Синклера (От веса тела)'))
+                else:
+                    allowed_methods.append(('iaaf', 'Официальная формула IAAF (Многоборье)'))
+            elif 'плавание' in comp_category:
+                allowed_methods.append(('fina', 'Очки FINA (Мировой стандарт)'))
+                
+        self.fields['scoring_method'].choices = allowed_methods
+
+        # Стилизуем виртуальные поля
+        for field in ['multiplier_val', 'iaaf_a', 'iaaf_b', 'iaaf_c']:
+            self.fields[field].widget.attrs.update({'class': 'form-control'})
+
+    def save(self, commit=True):
+        stage = super().save(commit=False)
+        method = stage.scoring_method
+        
+        # 5. Упаковка виртуальных полей обратно в JSON
+        if method == 'multiplier':
+            stage.scoring_config = {
+                'value_multiplier': float(self.cleaned_data.get('multiplier_val') or 1)
+            }
+        elif method == 'iaaf':
+            stage.scoring_config = {
+                'a': self.cleaned_data.get('iaaf_a') or 0.0,
+                'b': self.cleaned_data.get('iaaf_b') or 0.0,
+                'c': self.cleaned_data.get('iaaf_c') or 0.0
+            }
+        # УПАКОВКА ДЛЯ ПЛАВАНИЯ
+        elif method == 'fina':
+            stage.scoring_config = {
+                'base_time': float(self.cleaned_data.get('fina_base') or 0.0)
+            }
+        elif method == 'sinclair':
+            stage.scoring_config = {
+                'sinclair_a': float(self.cleaned_data.get('sinclair_a') or 0.0),
+                'sinclair_b': float(self.cleaned_data.get('sinclair_b') or 0.0)
+            }
+        else:
+            # Для Normalization и CrossFit доп. настройки пока не нужны
+            stage.scoring_config = {}
+            
+        if commit:
+            stage.save()
+            self.save_m2m() # Важно для сохранения поля judges (ManyToMany)
+        return stage
 
 class TeamForm(forms.ModelForm):
     class Meta:

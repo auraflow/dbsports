@@ -30,13 +30,7 @@
                                 <tbody>
                                     {% for row in individual_summary %}
                                         <tr>
-                                            <td class="fw-bold {% if forloop.counter == 1 and row.has_results %}text-warning{% elif forloop.counter == 2 and row.has_results %}text-light{% elif forloop.counter == 3 and row.has_results %}text-success{% else %}text-muted{% endif %}">
-                                                {% if row.has_results %}
-                                                    {{ forloop.counter }}
-                                                {% else %}
-                                                    -
-                                                {% endif %}
-                                            </td>
+                                            <td class="fw-bold">{{ row.place }}</td>
                                             <td class="fw-bold">{{ row.participant.full_name }}</td>
                                             <td class="text-danger">{{ row.total_penalty|default:"0.000" }}</td>
                                             <td class="text-end fw-bold text-success">

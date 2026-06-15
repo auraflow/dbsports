@@ -25,7 +25,6 @@
             </span>
             <div>
                 <button id="export-backup-btn" class="btn btn-sm btn-dark me-2">📦 Скачать бэкап</button>
-                <button id="force-sync-btn" class="btn btn-sm btn-success fw-bold">🔄 Синхронизировать</button>
             </div>
         </div>
     </div>
@@ -137,8 +136,10 @@
         const STAGE_ID = "{{ stage.id }}";
         const CSRF_TOKEN = "{{ csrf_token }}";
 
+        // ==========================================
+        // 1. БАЗОВЫЕ ФУНКЦИИ И ПОМОЩНИКИ
+        // ==========================================
 
-        // Функция получения CSRF токена из куки браузера
         function getCookie(name) {
             let cookieValue = null;
             if (document.cookie && document.cookie !== "") {
@@ -154,8 +155,48 @@
             return cookieValue;
         }
 
+        // Универсальная отрисовка строки в таблице
+        function renderResultRow(pName, val, pen, comm, isOffline = false) {
+            const template = document.getElementById("new-row-template");
+            const clone = template.content.cloneNode(true);
+
+            clone.querySelector(".js-name").textContent = pName;
+            clone.querySelector(".js-val").textContent = val;
+            clone.querySelector(".js-pen").textContent = pen;
+            clone.querySelector(".js-comm").textContent = comm || "—";
+
+            // Если сохранено офлайн — вешаем желтые маркеры
+            if (isOffline) {
+                const rowElement = clone.querySelector("tr") || clone.firstElementChild;
+                if (rowElement) {
+                    rowElement.classList.add("offline-row"); // Добавили класс для поиска
+                    rowElement.style.borderLeft = "4px solid #ffc107";
+                    rowElement.title = "Ожидает синхронизации с сервером";
+                }
+                const badge = clone.querySelector(".badge");
+                if (badge) {
+                    badge.textContent = "В очереди";
+                    badge.className = "badge bg-secondary text-light offline-badge";
+                }
+            }
+
+            document.querySelector("table tbody").prepend(clone);
+
+            const emptyRow = document.getElementById("empty-table-row");
+            if (emptyRow) emptyRow.remove();
+        }
+
+        function resetForm() {
+            document.getElementById("result-form").reset();
+            document.getElementById("id_penalty_value").value = "0.000";
+        }
+
+
+        // ==========================================
+        // 2. РАБОТА С ОФЛАЙН-ХРАНИЛИЩЕМ (LocalStorage)
+        // ==========================================
+
         function getStorageKey() {
-            // Добавили ID текущего пользователя в название сейфа
             return `offline_results_stage_${STAGE_ID}_user_{{ request.user.id }}`;
         }
 
@@ -180,7 +221,6 @@
             saveLocalRecords(records);
         }
 
-        // Показ/скрытие желтого банера накопившихся офлайн-записей
         function renderOfflineBanner() {
             const records = getLocalRecords();
             const banner = document.getElementById("offline-sync-banner");
@@ -194,7 +234,11 @@
             }
         }
 
-        // Перехват отправки формы
+
+        // ==========================================
+        // 3. ОСНОВНАЯ ЛОГИКА (ОТПРАВКА И АВТО-СИНХРОНИЗАЦИЯ)
+        // ==========================================
+
         document.getElementById("result-form").addEventListener("submit", function(e) {
             e.preventDefault();
 
@@ -202,55 +246,32 @@
             const pId = participantSelect.value;
             const selectedIndex = participantSelect.selectedIndex;
 
+            if (!pId) return;
+
+            const pName = participantSelect.options[selectedIndex].text;
             const val = document.getElementById("id_value").value;
             const pen = document.getElementById("id_penalty_value").value || "0.000";
             const comm = document.getElementById("id_comment").value || "";
 
-            if (!pId) return;
-
             if (navigator.onLine) {
-                // Если интернет есть — шлем AJAX-запрос на сервер
-                sendDataToServer(pId, val, pen, comm, selectedIndex);
+                sendDataToServer(pId, pName, val, pen, comm, selectedIndex);
             } else {
-                // Если интернета нет — сохраняем локально в браузер
-                const participantName = participantSelect.options[selectedIndex].text;
-
-                const offlineRecord = {
+                // Если интернета нет — локальное сохранение
+                addRecordToStorage({
                     participantId: pId,
-                    participantName: participantName,
+                    participantName: pName,
                     value: val,
                     penalty_value: pen,
                     comment: comm,
                     timestamp: new Date().getTime()
-                };
-
-                addRecordToStorage(offlineRecord);
+                });
                 participantSelect.remove(selectedIndex);
-
-                // Рендерим новую строку из безопасного HTML-шаблона <template>
-                const template = document.getElementById("new-row-template");
-                const clone = template.content.cloneNode(true);
-
-                clone.querySelector(".js-name").textContent = participantName;
-                clone.querySelector(".js-val").textContent = val;
-                clone.querySelector(".js-pen").textContent = pen;
-                clone.querySelector(".js-comm").textContent = comm || "—";
-
-                const tableBody = document.querySelector("table tbody");
-                tableBody.prepend(clone);
-
-                // Сбрасываем поля формы
-                document.getElementById("id_value").value = "";
-                document.getElementById("id_penalty_value").value = "0.000";
-                document.getElementById("id_comment").value = "";
-
-                const emptyRow = document.getElementById("empty-table-row");
-                if (emptyRow) emptyRow.remove();
+                renderResultRow(pName, val, pen, comm, true);
+                resetForm();
             }
         });
 
-        // Отправка данных на бэкенд (AJAX POST запрос)
-        function sendDataToServer(pId, val, pen, comm, selectedIndex) {
+        function sendDataToServer(pId, pName, val, pen, comm, selectedIndex) {
             const formData = new FormData();
             formData.append("participant", pId);
             formData.append("value", val);
@@ -269,98 +290,91 @@
                     if (response.ok) {
                         if (selectedIndex !== undefined) {
                             const participantSelect = document.getElementById("id_participant");
-                            const participantName = participantSelect.options[selectedIndex].text;
                             participantSelect.remove(selectedIndex);
-
-                            // Рендерим новую строку из безопасного HTML-шаблона <template>
-                            const template = document.getElementById("new-row-template");
-                            const clone = template.content.cloneNode(true);
-
-                            clone.querySelector(".js-name").textContent = participantName;
-                            clone.querySelector(".js-val").textContent = val;
-                            clone.querySelector(".js-pen").textContent = pen;
-                            clone.querySelector(".js-comm").textContent = comm || "—";
-
-                            const tableBody = document.querySelector("table tbody");
-                            tableBody.prepend(clone);
-
-                            // Очистка формы
-                            document.getElementById("id_value").value = "";
-                            document.getElementById("id_penalty_value").value = "0.000";
-                            document.getElementById("id_comment").value = "";
-
-                            const emptyRow = document.getElementById("empty-table-row");
-                            if (emptyRow) emptyRow.remove();
+                            renderResultRow(pName, val, pen, comm, false);
+                            resetForm();
                         }
-
                         removeRecordFromStorage(pId);
-
                     } else if (response.status === 400) {
                         removeRecordFromStorage(pId);
                     }
                 })
-                .catch(error => console.error("Ошибка отправки:", error));
+                .catch(error => {
+                    console.warn("Ошибка сети во время отправки! Перехватываем:", error);
+                    if (selectedIndex !== undefined) {
+                        addRecordToStorage({
+                            participantId: pId,
+                            participantName: pName,
+                            value: val,
+                            penalty_value: pen,
+                            comment: comm,
+                            timestamp: new Date().getTime()
+                        });
+                        const participantSelect = document.getElementById("id_participant");
+                        participantSelect.remove(selectedIndex);
+                        renderResultRow(pName, val, pen, comm, true);
+                        resetForm();
+                    }
+                });
         }
 
-        // Автоматическая фоновая отправка накопленных данных
+        // --- МАГИЯ АВТОМАТИЗАЦИИ ---
         function syncOfflineData() {
             const records = getLocalRecords();
             if (records.length === 0) return;
 
-            console.log(`Начинаем синхронизацию ${records.length} записей...`);
+            console.log("Сеть восстановлена. Начинаем тихую фоновую синхронизацию...");
 
             let chain = Promise.resolve();
             records.forEach(r => {
                 chain = chain.then(() => {
-                    return sendDataToServer(r.participantId, r.value, r.penalty_value, r.comment, undefined);
+                    return sendDataToServer(r.participantId, r.participantName, r.value, r.penalty_value, r.comment, undefined);
                 });
             });
 
             chain.then(() => {
-                console.log("Синхронизация завершена успешно.");
-                renderOfflineBanner();
+                // Плавно обновляем UI без перезагрузки, чтобы не мешать судье вводить новые данные
+                document.querySelectorAll(".offline-row").forEach(row => {
+                    row.style.borderLeft = "4px solid #198754"; // Зеленая полоса успеха
+                    row.title = "Синхронизировано";
+                    row.classList.remove("offline-row");
+
+                    const badge = row.querySelector(".offline-badge");
+                    if (badge) {
+                        badge.textContent = "Отправлен";
+                        badge.className = "badge bg-success text-light";
+                    }
+                });
+                renderOfflineBanner(); // Спрячет желтый баннер
             });
         }
 
-        // Ручной клик по кнопке принудительной синхронизации
-        document.getElementById("force-sync-btn").addEventListener("click", function() {
-            if (!navigator.onLine) {
-                alert("По-прежнему нет связи с интернетом. Синхронизация невозможна.");
-                return;
-            }
-            syncOfflineData();
-        });
+        // БРАУЗЕР САМ ВЫЗОВЕТ ЭТУ ФУНКЦИЮ, КАК ТОЛЬКО ПОЙМАЕТ WI-FI ИЛИ LTE!
+        window.addEventListener('online', syncOfflineData);
 
-        // Восстановление UI сохраненных офлайн-записей при жесткой перезагрузке страницы в лесу/на стадионе
+
+        // ==========================================
+        // 4. ВОССТАНОВЛЕНИЕ И БЭКАП
+        // ==========================================
+
         function restoreOfflineUI() {
             const records = getLocalRecords();
             const participantSelect = document.getElementById("id_participant");
 
             records.forEach(r => {
-                for (let i = 0; i < participantSelect.options.length; i++) {
-                    if (participantSelect.options[i].value === r.participantId.toString()) {
-                        participantSelect.remove(i);
-                        break;
+                if (participantSelect) {
+                    for (let i = 0; i < participantSelect.options.length; i++) {
+                        if (participantSelect.options[i].value === r.participantId.toString()) {
+                            participantSelect.remove(i);
+                            break;
+                        }
                     }
                 }
-
-                const template = document.getElementById("new-row-template");
-                const clone = template.content.cloneNode(true);
-
-                clone.querySelector(".js-name").textContent = r.participantName;
-                clone.querySelector(".js-val").textContent = r.value;
-                clone.querySelector(".js-pen").textContent = r.penalty_value;
-                clone.querySelector(".js-comm").textContent = r.comment || "—";
-
-                const tableBody = document.querySelector("table tbody");
-                tableBody.prepend(clone);
-
-                const emptyRow = document.getElementById("empty-table-row");
-                if (emptyRow) emptyRow.remove();
+                renderResultRow(r.participantName, r.value, r.penalty_value, r.comment, true);
             });
         }
 
-        // Кнопка скачивания локального бэкапа (в формате .json) на случай ЧП с телефоном
+        // Твоя функция скачивания .json бэкапа
         document.getElementById("export-backup-btn").addEventListener("click", function() {
             const records = getLocalRecords();
             if (records.length === 0) {
@@ -380,11 +394,8 @@
             alert("✅ Резервная копия успешно скачана! Этот файл можно будет передать Главному судье.");
         });
 
-        // Точка входа скрипта
+        // Инициализация при загрузке страницы
         renderOfflineBanner();
-
-        document.addEventListener("DOMContentLoaded", function() {
-            restoreOfflineUI();
-        });
+        document.addEventListener("DOMContentLoaded", restoreOfflineUI);
     </script>
 {% endblock content %}
