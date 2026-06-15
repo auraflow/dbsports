@@ -48,6 +48,8 @@
         <script>
             document.addEventListener("DOMContentLoaded", function() {
                 const globalNetBadge = document.getElementById('global-network-status');
+                // Добавляем переменную для памяти перед функцией
+                let isCurrentlyOffline = !navigator.onLine;
 
                 // 1. ВЫНОСИМ ТВОЮ ЛОГИКУ UI В ОТДЕЛЬНУЮ ФУНКЦИЮ
                 function applyNetworkState(isOffline) {
@@ -103,6 +105,14 @@
                             }
                         });
                     });
+                    // --- НОВАЯ МАГИЯ: ГЛОБАЛЬНОЕ СОБЫТИЕ ---
+                    // Если мы БЫЛИ в офлайне, а теперь СТАЛИ онлайн (сервер ожил)
+                    if (isCurrentlyOffline && !isOffline) {
+                        console.log("Пульс сервера восстановлен! Запускаем глобальную синхронизацию...");
+                        window.dispatchEvent(new CustomEvent('server-back-online'));
+                    }
+                    // Запоминаем текущий статус для следующей проверки
+                    isCurrentlyOffline = isOffline;
                 }
 
                 // 2. АСИНХРОННАЯ ПРОВЕРКА ПУЛЬСА СЕРВЕРА (HEARTBEAT)

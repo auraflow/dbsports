@@ -102,11 +102,15 @@
                                         <td>{{ r.penalty_value|default:"0" }}</td>
                                         <td class="text-muted small">{{ r.comment|default:"—" }}</td>
                                         <td>
-                                            {% if r.is_verified %}
-                                                <span class="badge bg-success">Проверен</span>
-                                            {% else %}
-                                                <span class="badge bg-warning text-dark">Не проверен</span>
-                                            {% endif %}
+                                            <div class="d-flex align-items-center gap-2">
+                                                {% if r.is_verified %}
+                                                    <span class="badge bg-success">Проверен</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning text-dark">Не проверен</span>
+                                                    <a href="{% url 'edit_result' r.id %}"
+                                                       class="btn btn-sm btn-outline-warning py-0 requires-network">Изменить</a>
+                                                {% endif %}
+                                            </div>
                                         </td>
                                     </tr>
                                 {% empty %}
@@ -352,6 +356,8 @@
         // БРАУЗЕР САМ ВЫЗОВЕТ ЭТУ ФУНКЦИЮ, КАК ТОЛЬКО ПОЙМАЕТ WI-FI ИЛИ LTE!
         window.addEventListener('online', syncOfflineData);
 
+        // --- ДОБАВЛЯЕМ СЮДА: Слушаем наш умный пинг из base.html ---
+        window.addEventListener('server-back-online', syncOfflineData);
 
         // ==========================================
         // 4. ВОССТАНОВЛЕНИЕ И БЭКАП

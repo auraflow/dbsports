@@ -10,6 +10,7 @@ from django.db.models import ProtectedError, Q
 from django.contrib import messages
 from django.http import JsonResponse
 from django.urls import reverse
+from django.db import IntegrityError
 
 from .models import (
     Competition, Stage, Result, Team, TeamMember, 
@@ -122,6 +123,44 @@ def owner_lock(view_func):
     return _wrapped_view
 
 
+def stage_access_lock(view_func):
+    """
+    Умный декоратор для этапов соревнований:
+    Пускает Создателя турнира, Главного судью, Назначенных на этап судей и Автора результата.
+    """
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if request.user.is_superuser:
+            return view_func(request, *args, **kwargs)
+            
+        stage = None
+        is_author = False
+        
+        # Определяем, к какому этапу стучится пользователь
+        if 'stage_id' in kwargs:
+            stage = get_object_or_404(Stage, pk=kwargs['stage_id'])
+        elif 'result_id' in kwargs:
+            result = get_object_or_404(Result, pk=kwargs['result_id'])
+            stage = result.stage
+            is_author = (result.judge == request.user) # Если это редактирование, проверяем авторство
+
+        if stage:
+            comp = stage.competition
+            is_owner = (comp.created_by == request.user)
+            is_chief = (comp.chief_judge == request.user)
+            is_assigned = stage.judges.filter(id=request.user.id).exists()
+            
+            # Если ни одно из условий не выполнено - выгоняем
+            if not (is_owner or is_chief or is_assigned or is_author):
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'error': 'Отказано в доступе к этапу.'}, status=403)
+                messages.error(request, "🛑 У вас нет прав для работы с результатами этого этапа.")
+                return redirect('dashboard')
+                
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
+
 # ==========================================
 # 2. ОБЩИЕ МАРШРУТЫ
 # ==========================================
@@ -156,10 +195,11 @@ def stage_list(request):
 
 @login_required
 @archive_lock
+@stage_access_lock
 def enter_result(request, stage_id):
     """Интерфейс ввода результатов участникам с поддержкой AJAX и офлайн-синхронизации"""
     stage = get_object_or_404(Stage, pk=stage_id)
-    
+
     # ЗАЩИТА: Блокировка ввода, если турнир находится в архиве
     if stage.competition.is_archived:
         messages.error(request, "Соревнование архивировано. Ввод результатов невозможен.")
@@ -175,11 +215,18 @@ def enter_result(request, stage_id):
         if form.is_valid():
             result = form.save(commit=False)
                         
+            # === ЗАЩИТА ОТ КРАЖИ УЧАСТНИКА (Mass Assignment) ===
+            if result.participant.competition != stage.competition:
+                return HttpResponseForbidden("Критическая ошибка: Попытка привязать участника из другого турнира!")
+            # ===================================================
+
             # ЗАЩИТА: Запрет на дублирование результатов (Race Condition)
+            # ЗАЩИТА: Запрет на дублирование результатов
+            # Это первичная (мягкая) проверка
             if Result.objects.filter(participant=result.participant, stage=stage).exists():
                 if is_ajax:
                     return JsonResponse({'success': False, 'error': 'Результат для этого участника уже зафиксирован!'}, status=400)
-                form.add_error('participant', 'Результат для этого участника уже зафиксирован!')
+                messages.error(request, 'Результат для этого участника уже зафиксирован!')
             else:
                 result.stage = stage
                 
@@ -188,23 +235,32 @@ def enter_result(request, stage_id):
                 result.is_verified = False # ЖЕСТКО сбрасываем статус
                 # ==================================================
                 
-                result.save()
-                
-                # Логируем действие для Организатора
-                AuditLog.objects.create(
-                    user=request.user,
-                    competition=stage.competition,
-                    action="Ввод результата",
-                    details=f"Судья зафиксировал результат для {result.participant.full_name} на этапе «{stage.name}»: {result.value}."
-                )
-                
-                # Если это был AJAX, просто подтверждаем успех (JS сам отрисует строку)
-                if is_ajax:
-                    return JsonResponse({'success': True})
-                
-                # Если это обычная отправка (без JS), перезагружаем страницу
-                messages.success(request, f"Результат для {result.participant.full_name} успешно записан!")
-                return redirect('enter_result', stage_id=stage.id)
+                # 🛡️ УЛЬТРА-ЗАЩИТА ОТ ГОНКИ AJAX-ЗАПРОСОВ (Race Condition)
+                try:
+                    result.save()
+                    
+                    # Логируем действие для Организатора (ТОЛЬКО если сохранение прошло успешно)
+                    AuditLog.objects.create(
+                        user=request.user,
+                        competition=stage.competition,
+                        action="Ввод результата",
+                        details=f"Судья зафиксировал результат для {result.participant.full_name} на этапе «{stage.name}»: {result.value}."
+                    )
+                    
+                    # Если это был AJAX, просто подтверждаем успех
+                    if is_ajax:
+                        return JsonResponse({'success': True})
+                    
+                    # Если обычная отправка
+                    messages.success(request, f"Результат для {result.participant.full_name} успешно записан!")
+                    return redirect('enter_result', stage_id=stage.id)
+
+                except IntegrityError:
+                    # Если два запроса проскочили первую проверку .exists() одновременно, 
+                    # второй запрос гарантированно разобьется об этот блок, а сервер НЕ упадет!
+                    if is_ajax:
+                        return JsonResponse({'success': False, 'error': 'Результат уже был отправлен ранее (дубликат синхронизации).'}, status=400)
+                    messages.error(request, 'Критическая ошибка: Результат уже существует (дубликат).')
         else:
             if is_ajax:
                 return JsonResponse({'success': False, 'error': 'Некорректные данные формы. Проверьте значения.'}, status=400)
@@ -231,27 +287,12 @@ def enter_result(request, stage_id):
 
 @login_required
 @archive_lock
+@stage_access_lock
 def edit_result(request, result_id):
     """Редактирование результата (совместный доступ для судей этапа)"""
     # 1. Получаем результат без жесткой привязки к автору
     result = get_object_or_404(Result, pk=result_id)
     stage = result.stage
-    comp = stage.competition
-    
-    # === УМНАЯ ЗАЩИТА ПРАВ ДОСТУПА ===
-    is_super = request.user.is_superuser
-    is_owner = (comp.created_by == request.user)
-    is_chief = (comp.chief_judge == request.user)
-    is_author = (result.judge == request.user)
-    # Проверяем, назначен ли текущий пользователь судить этот конкретный этап
-    is_assigned = stage.judges.filter(id=request.user.id).exists()
-    
-    # Если ни одно из условий не выполнено — блокируем доступ (защита от хакеров)
-    if not (is_super or is_owner or is_chief or is_author or is_assigned):
-        messages.error(request, "У вас нет прав для редактирования результатов на этом этапе.")
-        return redirect('dashboard')
-    # =================================
-
     stage_id = stage.id
 
     # ЗАЩИТА БИЗНЕС-ЛОГИКИ: Блокируем редактирование проверенных результатов
@@ -261,6 +302,7 @@ def edit_result(request, result_id):
 
     if request.method == 'POST':
         form = ResultForm(request.POST, instance=result)
+        form.fields['participant'].queryset = Participant.objects.filter(id=result.participant.id)
         if form.is_valid():
             # === ЗАЩИТА ОТ ПОДМЕНЫ ПОЛЕЙ ===
             # 1. Останавливаем прямое сохранение
@@ -323,6 +365,7 @@ def chief_stage_list(request):
 
 @login_required
 @chief_judge_required
+@owner_lock
 @archive_lock
 def stage_verify_panel(request, stage_id):
     """Панель проверки и утверждения результатов этапа"""
@@ -333,6 +376,7 @@ def stage_verify_panel(request, stage_id):
 @login_required
 @chief_judge_required
 @require_POST
+@owner_lock
 @archive_lock
 def verify_results_backend(request, stage_id):
     """Обработчик действий: Верификация, Штраф, Удаление, Отмена верификации"""
@@ -566,6 +610,11 @@ def manage_team_members(request, team_id):
         if form.is_valid():
             member = form.save(commit=False)
             member.team = team
+
+            # === ЗАЩИТА ОТ КРАЖИ УЧАСТНИКА В ЧУЖУЮ КОМАНДУ ===
+            if member.participant.competition != competition:
+                return HttpResponseForbidden("Критическая ошибка: Этот спортсмен из другого турнира!")
+            # =================================================
             
             # На всякий случай оставляем защиту бэкенда
             if TeamMember.objects.filter(team__competition=competition, participant=member.participant).exists():
@@ -1060,10 +1109,20 @@ def offline_manifest(request):
     # 6. Собираем ссылки на формы судейства и турнирные таблицы
     stages = Stage.objects.filter(competition__is_archived=False)
 
-    # --- НОВОЕ: Ограничиваем паука, чтобы он качал только разрешенные этапы ---
-    if user_role == "Судья":
+    # --- ЖЕСТКАЯ ФИЛЬТРАЦИЯ ДЛЯ PWA-КЭША ---
+    if is_super:
+        pass # Суперпользователь качает всё
+    elif user_role == "Организатор":
+        # Организатор качает этапы ТОЛЬКО своих турниров (или где он назначен главным)
+        from django.db.models import Q
+        stages = stages.filter(Q(competition__created_by=request.user) | Q(competition__chief_judge=request.user))
+    elif user_role == "Главный судья":
+        stages = stages.filter(competition__chief_judge=request.user)
+    elif user_role == "Судья":
         stages = stages.filter(judges=request.user)
-    # -------------------------------------------------------------------------
+    else:
+        stages = Stage.objects.none() # Безопасный дефолт: ничего не отдавать
+    # ---------------------------------------
 
     for stage in stages:
         # Формы ввода и лидерборды доступны и кэшируются всеми (включая рядовых полевых судей)
