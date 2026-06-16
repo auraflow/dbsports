@@ -12,6 +12,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+# === ОПТИМИЗАЦИЯ SQLITE ДЛЯ ПАРАЛЛЕЛЬНОЙ СИНХРОНИЗАЦИИ ===
+from django.db.backends.signals import connection_created
+from django.dispatch import receiver
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,15 +28,7 @@ SECRET_KEY = 'django-insecure-z&6y*=03w%pia*tr##xvbt(ojznz8ucmy+^fcaksh-gvj%+0m-
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-
-# Обязательно удалить после окончания тестирования
-ALLOWED_HOSTS = ['*']
-# Разрешаем бэкенду принимать POST-запросы (авторизацию) через туннели
-CSRF_TRUSTED_ORIGINS = [
-    'https://*.lhr.life',
-    'https://*.localhost.run',
-]
-
+ 
 # Application definition
 
 INSTALLED_APPS = [
@@ -81,14 +76,12 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'sports_accounting',      # Имя созданной базы данных
-        'USER': 'postgres',     # Твой логин в PostgreSQL (обычно postgres)
-        'PASSWORD': 'admin',      # Твой пароль от PostgreSQL
-        'HOST': '127.0.0.1',              # Локальный сервер
-        'PORT': '5432',                   # Стандартный порт PostgreSQL
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
         'OPTIONS': {
-            'options': '-c lc_messages=en_US.UTF-8'
+            # Увеличиваем таймаут: если база занята другим судьей, 
+            # Django подождет 20 секунд, а не упадет сразу с ошибкой
+            'timeout': 20, 
         }
     }
 }
@@ -111,6 +104,14 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
+@receiver(connection_created)
+def configure_sqlite_wal(sender, connection, **kwargs):
+    if connection.vendor == 'sqlite':
+        cursor = connection.cursor()
+        cursor.execute('PRAGMA journal_mode=WAL;')
+        cursor.execute('PRAGMA synchronous=NORMAL;')
+        cursor.execute('PRAGMA cache_size=-64000;') # Выделяем 64МБ RAM под кэш
 
 
 # Internationalization
