@@ -1,0 +1,48 @@
+{% extends "competitions/components/base.html" %}
+{% block title %}Итоги этапа: {{ stage.name }}{% endblock title %}
+{% block content %}
+    <div class="mb-3 no-print">
+        <a href="{% url 'dashboard' %}"
+           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+    </div>
+    <div class="card mb-4 border-warning">
+        <div class="card-body py-4">
+            <h2 class="mb-1 text-warning">Рейтинг этапа</h2>
+            <p class="text-muted m-0">Этап: <strong class="text-light">{{ stage.name }}</strong></p>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body py-4">
+            {% if standings %}
+                <div class="table-responsive">
+                    <table class="table table-borderless align-middle m-0">
+                        <thead>
+                            <tr>
+                                <th>Место</th>
+                                <th>Участник</th>
+                                <th>Базовый результат</th>
+                                <th>Штраф</th>
+                                <th class="text-end">Итоговый счет</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in standings %}
+                                <tr>
+                                    <td class="fw-bold {% if row.place == 1 %}text-warning{% elif row.place == 2 %}text-light{% elif row.place == 3 %}text-success{% else %}text-muted{% endif %}">
+                                        {{ row.place }}
+                                    </td>
+                                    <td class="fw-bold">{{ row.participant.full_name }}</td>
+                                    <td>{{ row.original_value }}</td>
+                                    <td class="text-danger">{{ row.penalty|default:"0.000" }}</td>
+                                    <td class="text-end fw-bold text-success">{{ row.final_score }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted m-0">Результаты пока не сформированы или не верифицированы Главным судьей.</p>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}

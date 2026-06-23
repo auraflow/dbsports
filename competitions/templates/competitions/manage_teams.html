@@ -1,87 +1,84 @@
-<!DOCTYPE html>
-<html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <title>Управление командами</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              rel="stylesheet">
-    </head>
-    <body class="bg-light">
-        <div class="container py-4">
-            <h2 class="mb-3">Управление: <span class="text-primary">{{ competition.title }}</span></h2>
-            <ul class="nav nav-tabs mb-4">
-                <li class="nav-item">
-                    <a href="{% url 'organizer_competitions' %}"
-                       class="btn btn-sm btn-outline-secondary">← К списку соревнований</a>
-                </li>
-            </ul>
-            <ul class="nav nav-tabs mb-4">
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'manage_stages' competition.id %}">⚙️ Этапы</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link active fw-bold"
-                       href="{% url 'manage_teams' competition.id %}">🛡️ Команды (Отряды)</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link"
-                       href="{% url 'manage_participants' competition.id %}">🏃 Участники</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link"
-                       href="{% url 'competition_summary' competition.id %}">📊 Сводные итоги</a>
-                </li>
-            </ul>
-            <div class="row g-4">
-                <div class="col-md-5">
-                    <div class="card shadow-sm p-4 bg-white rounded">
-                        <h4 class="h5 mb-3">Зарегистрировать команду</h4>
-                        <form method="post">
-                            {% csrf_token %}
-                            <div class="mb-3">
-                                <label class="form-label">Название команды / Номер отряда</label>
-                                {{ form.team_name }}
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">Создать команду</button>
-                        </form>
-                    </div>
+{% extends "competitions/components/base.html" %}
+{% block title %}Команды: {{ competition.title }}{% endblock title %}
+{% block content %}
+    <div class="mb-3 no-print">
+        <a href="{% url 'competition_panel' competition.id %}"
+           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+    </div>
+    <div class="card mb-4">
+        <div class="card-body py-4">
+            <h2 class="mb-1 text-warning">Управление командами</h2>
+            <p class="text-muted mb-0">Турнир: <strong class="text-light">{{ competition.title }}</strong></p>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h4 class="mb-3">Добавить команду</h4>
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+                        <button type="submit"
+                                class="btn btn-outline-success w-100 mt-2 requires-network">Сохранить</button>
+                    </form>
                 </div>
-                <div class="col-md-7">
-                    <div class="card shadow-sm p-3 bg-white rounded">
-                        <h4 class="h5 mb-3 text-muted">Список зарегистрированных команд</h4>
+            </div>
+        </div>
+        <div class="col-md-8 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="m-0">Список команд</h4>
+                        {% if teams %}
+                            <form method="post" class="m-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_all">
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-danger requires-network"
+                                        data-vega-confirm="Вы уверены, что хотите расформировать ВСЕ команды? (Спортсмены при этом останутся в общей базе).">
+                                    🗑️ Расформировать все
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                    {% if teams %}
                         <div class="table-responsive">
-                            <table class="table table-striped align-middle mb-0">
-                                <thead class="table-dark">
+                            <table class="table table-borderless align-middle m-0">
+                                <thead>
                                     <tr>
-                                        <th style="width: 15%;">ID</th>
-                                        <th>Название команды</th>
-                                        <th class="text-end">Конфигурация</th>
+                                        <th>Название</th>
+                                        <th class="text-end">Действия</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for team in teams %}
                                         <tr>
-                                            <td><span class="text-muted">#{{ team.id }}</span></td>
-                                            <td><strong>{{ team.team_name }}</strong></td>
+                                            <td class="fw-bold">{{ team.team_name }}</td>
                                             <td class="text-end">
-                                                <a href="{% url 'manage_team_members' team.id %}"
-                                                   class="btn btn-sm btn-primary me-1">Состав →</a>
-                                                <a href="{% url 'delete_team' team.id %}"
-                                                   class="btn btn-sm btn-outline-danger"
-                                                   onclick="return confirm('Удалить команду?');">✖</a>
+                                                <div class="d-flex justify-content-end gap-2">
+                                                    <a href="{% url "manage_team_members" team.id %}"
+                                                       class="btn btn-sm btn-outline-light">Состав</a>
+                                                    <form action="{% url "delete_team" team.id %}"
+                                                          method="post"
+                                                          class="d-inline">
+                                                        {% csrf_token %}
+                                                        <button type="submit"
+                                                                class="btn btn-sm btn-danger requires-network"
+                                                                data-vega-confirm="Удалить команду?">Удалить</button>
+                                                    </form>
+                                                </div>
                                             </td>
-                                        </tr>
-                                    {% empty %}
-                                        <tr>
-                                            <td colspan="3" class="text-center text-muted py-4">Команды еще не добавлены.</td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    {% else %}
+                        <p class="text-muted m-0">В этом турнире пока нет команд.</p>
+                    {% endif %}
                 </div>
             </div>
         </div>
-    </body>
-</html>
+    </div>
+{% endblock content %}

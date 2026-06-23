@@ -1,16 +1,27 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
+from django.views.generic import TemplateView
+from django.http import HttpResponse
 from . import views
 
 urlpatterns = [
     # Авторизация
-    path('login/', auth_views.LoginView.as_view(template_name='competitions/login.html'), name='login'),
+    path('login/', auth_views.LoginView.as_view(template_name='competitions/login.html', redirect_authenticated_user=True), name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('manifest.json', TemplateView.as_view(template_name='manifest.json', content_type='application/json'), name='manifest.json'),
+    # --- МАРШРУТ ДЛЯ ПИНГА СЕРВЕРА ---
+    path('ping/', lambda request: HttpResponse("OK"), name='ping'),
+
+    # Регистрация Service Worker как JavaScript файла
+    path('sw.js', TemplateView.as_view(template_name='sw.js', content_type='application/javascript'), name='sw.js'),
+    # PWA Манифест для кэширования
+    path('offline-manifest/', views.offline_manifest, name='offline_manifest'),
 
     # Основные интерфейсы
     path('', views.dashboard, name='dashboard'),
     path('stages/', views.stage_list, name='stage_list'),
     path('stage/<int:stage_id>/enter/', views.enter_result, name='enter_result'),
+    path('result/<int:result_id>/edit/', views.edit_result, name='edit_result'),
     path('stage/<int:stage_id>/leaderboard/', views.stage_leaderboard, name='stage_leaderboard'),
     
     # Бэкенд-маршруты
@@ -22,6 +33,7 @@ urlpatterns = [
     # Интерфейсы Организатора
     path('organizer/competitions/', views.organizer_competitions, name='organizer_competitions'),
     path('organizer/competitions/create/', views.create_competition, name='create_competition'),
+    path('organizer/competitions/<int:comp_id>/edit/', views.edit_competition, name='edit_competition'),
     path('organizer/competitions/<int:comp_id>/participants/', views.manage_participants, name='manage_participants'),
 
     # Маршруты верификации для Главного судьи
@@ -42,8 +54,17 @@ urlpatterns = [
     path('archive/', views.archive_list, name='archive_list'),
     path('archive/<int:comp_id>/toggle/', views.toggle_archive, name='toggle_archive'),
     path('export/<int:comp_id>/csv/', views.export_excel, name='export_excel'),
+    path('competition/<int:comp_id>/export/xlsx/', views.export_xlsx_report, name='export_xlsx_report'),
 
     path('archive/<int:comp_id>/detail/', views.archive_detail, name='archive_detail'),
 
     path('audit-log/', views.audit_log_list, name='audit_log_list'),
+
+    path('team-member/<int:member_id>/delete/', views.delete_team_member, name='delete_team_member'),
+
+    path('competition/<int:comp_id>/panel/', views.competition_panel, name='competition_panel'),
+
+    path('participant/<int:part_id>/edit/', views.edit_participant, name='edit_participant'),
+    path('stage/<int:stage_id>/edit/', views.edit_stage, name='edit_stage'),
+    path('team/<int:team_id>/edit/', views.edit_team, name='edit_team'),
 ]

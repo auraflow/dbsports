@@ -1,91 +1,23 @@
-<!DOCTYPE html>
-<html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <title>Создание соревнования</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              rel="stylesheet">
-    </head>
-    <body class="bg-light">
-        <div class="container py-5" style="max-width: 800px;">
-            <div class="mb-4">
-                <a href="{% url 'organizer_competitions' %}"
-                   class="btn btn-sm btn-outline-secondary">← Вернуться к списку</a>
-            </div>
-            <h2 class="mb-4">Создание нового мероприятия</h2>
-            <form method="POST" id="competition-form">
+{% extends "competitions/components/base.html" %}
+{% block title %}Создание соревнования{% endblock title %}
+{% block content %}
+    <div class="mb-3 no-print">
+        <a href="{% url 'organizer_competitions' %}"
+           class="btn btn-sm btn-outline-light smart-back px-3">Назад</a>
+    </div>
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body py-4 px-4">
+            <h2 class="mb-3 text-info fw-bold">Создание соревнования</h2>
+            <p class="text-muted mb-4 fs-5">Заполните основные данные о новом турнире. Поля со звездочкой обязательны для заполнения.</p>
+            <form method="post" class="mt-2">
                 {% csrf_token %}
-                <div class="card shadow-sm mb-4 border-0">
-                    <div class="card-header bg-primary text-white fw-bold py-3">1. Основная информация</div>
-                    <div class="card-body p-4">
-                        <div class="mb-4">
-                            <label class="form-label fw-bold text-secondary">Название соревнования *</label>
-                            {{ form.title }}
-                            {% if form.title.errors %}<div class="text-danger small mt-1">{{ form.title.errors }}</div>{% endif %}
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold text-secondary">Дата начала *</label>
-                                {{ form.start_date }}
-                                {% if form.start_date.errors %}<div class="text-danger small mt-1">{{ form.start_date.errors }}</div>{% endif %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold text-secondary">{{ form.type.label }}</label>
-                                {{ form.type }}
-                                {% if form.type.errors %}<div class="text-danger small mt-1">{{ form.type.errors }}</div>{% endif %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold text-secondary">Статус</label>
-                                {{ form.status }}
-                                {% if form.status.errors %}<div class="text-danger small mt-1">{{ form.status.errors }}</div>{% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card shadow-sm mb-4 border-0 border-start border-warning border-5">
-                    <div class="card-header bg-white fw-bold py-3 fs-5">⚙️ 2. Конструктор форматов зачета</div>
-                    <div class="card-body p-4">
-                        <p class="text-muted small mb-4">Выберите, какие рейтинговые таблицы будут формироваться в рамках этого мероприятия. Можно выбрать оба варианта (смешанный формат).</p>
-                        <div class="form-check form-switch fs-5 mb-4">
-                            {{ form.has_individual }}
-                            <label class="form-check-label fw-bold text-dark"
-                                   for="{{ form.has_individual.id_for_label }}">Личное первенство</label>
-                            <div class="form-text text-muted fs-6 mt-1">
-                                Позволяет фиксировать результаты каждого спортсмена и формировать индивидуальный рейтинг на странице итогов.
-                            </div>
-                        </div>
-                        <hr class="text-muted">
-                        <div class="form-check form-switch fs-5 mt-4">
-                            {{ form.has_team }}
-                            <label class="form-check-label fw-bold text-dark"
-                                   for="{{ form.has_team.id_for_label }}">Командный зачет (по Отрядам)</label>
-                            <div class="form-text text-muted fs-6 mt-1">
-                                Открывает модуль формирования команд. Результаты участников будут автоматически суммироваться в общий рейтинг отряда.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="d-flex justify-content-end gap-3 mt-5">
-                    <a href="{% url 'organizer_competitions' %}"
-                       class="btn btn-light border px-4">Отмена</a>
-                    <button type="submit"
-                            class="btn btn-success px-5 fw-bold shadow-sm"
-                            onclick="return validateConstructor()">Создать соревнование</button>
-                </div>
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger py-2 small fw-bold border-0 rounded-3 mb-4">{{ form.non_field_errors.0 }}</div>
+                {% endif %}
+                <div class="mb-4 form-vega-wrapper">{{ form.as_p }}</div>
+                <hr class="mb-4">
+                <button type="submit" class="btn btn-info btn-lg px-4 shadow-sm">Сохранить соревнование</button>
             </form>
         </div>
-        <script>
-            // Защита от дурака: организатор должен выбрать хотя бы один формат, иначе соревнование не имеет смысла
-            function validateConstructor() {
-                const ind = document.getElementById('{{ form.has_individual.id_for_label }}').checked;
-                const tm = document.getElementById('{{ form.has_team.id_for_label }}').checked;
-
-                if (!ind && !tm) {
-                    alert("⚠️ Ошибка: Выберите хотя бы один формат зачета (Личный или Командный) для создания соревнования!");
-                    return false;
-                }
-                return true;
-            }
-        </script>
-    </body>
-</html>
+    </div>
+{% endblock content %}

@@ -4,12 +4,22 @@ from django.contrib.auth.models import AbstractUser
 
 # 1. Роли пользователей
 class Role(models.Model):
-    role_name = models.CharField(max_length=100, unique=True)
+    # Внедряем Choices для жесткой фиксации ролей в коде
+    class RoleNames(models.TextChoices):
+        ORGANIZER = 'Организатор', 'Организатор'
+        CHIEF_JUDGE = 'Главный судья', 'Главный судья'
+        JUDGE = 'Судья', 'Судья'
+
+    role_name = models.CharField(
+        max_length=100, 
+        choices=RoleNames.choices, 
+        unique=True
+    )
 
     def __str__(self):
         return self.role_name
 
-# 2. Расширенная модель пользователей (вместо стандартной таблицы users)
+# 2. Расширенная модель пользователей
 class User(AbstractUser):
     full_name = models.CharField(max_length=150)
     role = models.ForeignKey(Role, on_delete=models.PROTECT, null=True, blank=True)
@@ -26,17 +36,35 @@ class CompetitionType(models.Model):
 
 # 4. Соревнования
 class Competition(models.Model):
+    # Убираем хардкод, используем перечисления для статусов
+    class StatusChoices(models.TextChoices):
+        ACTIVE = 'Активно', 'Активно'
+        COMPLETED = 'Завершено', 'Завершено'
+        DRAFT = 'Черновик', 'Черновик'
+
     title = models.CharField(max_length=200, verbose_name='Название соревнования')
     start_date = models.DateField(verbose_name='Дата начала')
     type = models.ForeignKey(CompetitionType, on_delete=models.SET_NULL, null=True, verbose_name='Тип')
-    status = models.CharField(max_length=50, default='Активно', verbose_name='Статус')
+    status = models.CharField(
+        max_length=50, 
+        choices=StatusChoices.choices, 
+        default=StatusChoices.ACTIVE, 
+        verbose_name='Статус'
+    )
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     
-    # НОВЫЕ ПОЛЯ КОНСТРУКТОРА
     has_individual = models.BooleanField(default=True, verbose_name='Проводить личный зачет')
     has_team = models.BooleanField(default=False, verbose_name='Проводить командный зачет')
-
     is_archived = models.BooleanField(default=False, verbose_name="В архиве")
+    # СВЯЗЫВАЕМ ТУРНИР С ЕГО ГЛАВНЫМ СУДЬЕЙ:
+    chief_judge = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='chief_competitions',
+        verbose_name='Главный судья соревнований'
+    )
 
     def __str__(self):
         return self.title
@@ -44,15 +72,52 @@ class Competition(models.Model):
 # 5. Типы замеров для этапов
 class StageType(models.Model):
     measure_unit = models.CharField(max_length=50, unique=True)
+    # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Флаг для правильного расчета турнирной таблицы
+    is_lower_better = models.BooleanField(
+        default=True, 
+        verbose_name='Меньшее значение побеждает (например, время в секундах)'
+    )
 
     def __str__(self):
         return self.measure_unit
 
 # 6. Этапы соревнований
 class Stage(models.Model):
+    # --- НОВОЕ: Реестр доступных алгоритмов ---
+    class ScoringMethods(models.TextChoices):
+        CROSSFIT = 'crossfit', 'Очки за места (CrossFit - 100, 95, 90...)'
+        NORMALIZATION = 'normalization', 'Линейная нормализация (Баллы 0-100)'
+        MULTIPLIER = 'multiplier', 'Кастомный множитель (Своя цена за единицу)'
+        IAAF = 'iaaf', 'Официальная формула IAAF (Многоборье)'
+        FINA = 'fina', 'Очки FINA (Плавание)'
+        SINCLAIR = 'sinclair', 'Коэффициент Синклера (Тяжелая атлетика)'
+    # ------------------------------------------
+
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, related_name='stages')
     name = models.CharField(max_length=200)
     type = models.ForeignKey(StageType, on_delete=models.PROTECT)
+
+    # --- НОВЫЕ ПОЛЯ ДЛЯ MATH ENGINE ---
+    scoring_method = models.CharField(
+        max_length=50, 
+        choices=ScoringMethods.choices, 
+        default=ScoringMethods.NORMALIZATION,
+        verbose_name='Алгоритм подсчета баллов'
+    )
+    scoring_config = models.JSONField(
+        default=dict, 
+        blank=True, 
+        verbose_name='Настройки алгоритма (JSON)'
+    )
+    # ----------------------------------
+    
+    # === НОВОЕ ПОЛЕ: Назначенные полевые судьи ===
+    judges = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, 
+        blank=True, 
+        related_name='assigned_stages',
+        verbose_name='Назначенные судьи'
+    )
 
     def __str__(self):
         return f"{self.competition.title} - {self.name}"
@@ -70,6 +135,16 @@ class Participant(models.Model):
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE, related_name='participants')
     full_name = models.CharField(max_length=150)
     bib_number = models.CharField(max_length=20, blank=True, null=True, verbose_name='Стартовый номер')
+    weight_kg = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name='Собственный вес (кг)')
+
+    class Meta:
+        # Защита от дублирования стартовых номеров в рамках одного соревнования
+        constraints = [
+            models.UniqueConstraint(
+                fields=['competition', 'bib_number'], 
+                name='unique_bib_per_competition'
+            )
+        ]
 
     def __str__(self):
         return f"[{self.bib_number}] {self.full_name}"
@@ -79,16 +154,36 @@ class TeamMember(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='members')
     participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='teams')
 
+    class Meta:
+        # Защита от добавления одного человека в команду несколько раз
+        constraints = [
+            models.UniqueConstraint(
+                fields=['team', 'participant'], 
+                name='unique_team_member'
+            )
+        ]
+
 # 10. Результаты этапов
 class Result(models.Model):
-    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='results')
-    stage = models.ForeignKey(Stage, on_delete=models.CASCADE, related_name='results')
+    # ИСПРАВЛЕНИЕ: Запрещаем случайное удаление участников или этапов, если у них есть результаты
+    participant = models.ForeignKey(Participant, on_delete=models.PROTECT, related_name='results')
+    stage = models.ForeignKey(Stage, on_delete=models.PROTECT, related_name='results')
     judge = models.ForeignKey(User, on_delete=models.PROTECT, related_name='recorded_results')
+    
     value = models.DecimalField(max_digits=12, decimal_places=3)
     penalty_value = models.DecimalField(max_digits=12, decimal_places=3, default=0.000, null=True, blank=True)
     comment = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_verified = models.BooleanField(default=False)
+
+    class Meta:
+        # ЗАЩИТА: Жесткий запрет на создание двух результатов для одного спортсмена на одном этапе
+        constraints = [
+            models.UniqueConstraint(
+                fields=['participant', 'stage'], 
+                name='unique_result_per_stage'
+            )
+        ]
 
     def __str__(self):
         return f"{self.participant.full_name} -> {self.stage.name}: {self.value}"
@@ -105,6 +200,7 @@ class ResultLog(models.Model):
     def __str__(self):
         return f"Изменение результата #{self.result.id} пользователем {self.changed_by.username}"
 
+# 12. Глобальный журнал аудита
 class AuditLog(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 

@@ -1,69 +1,397 @@
-<!DOCTYPE html>
-<html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Ввод результатов</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              rel="stylesheet">
-    </head>
-    <body class="bg-light">
-        <div class="container py-3" style="max-width: 500px;">
-            <a href="{% url 'stage_list' %}"
-               class="btn btn-sm btn-outline-secondary mb-3">← К списку этапов</a>
-            <div class="card shadow-sm p-4 bg-white rounded mb-4">
-                <span class="badge bg-primary mb-2 align-self-start">{{ stage.competition.title }}</span>
-                <h3 class="h5 mb-3">Этап: {{ stage.name }}</h3>
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label class="form-label font-weight-bold">Выбор участника</label>
-                        {{ form.participant }}
-                    </div>
-                    <div class="row">
-                        <div class="col mb-3">
-                            <label class="form-label">Результат (значение)</label>
-                            {{ form.value }}
-                        </div>
-                        <div class="col mb-3">
-                            <label class="form-label">Штраф</label>
-                            {{ form.penalty_value }}
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Замечания / Комментарий</label>
-                        {{ form.comment }}
-                    </div>
-                    <button type="submit" class="btn btn-success w-100 py-2">Сохранить результат</button>
-                </form>
+{% extends "competitions/components/base.html" %}
+{% block title %}Ввод результатов: {{ stage.name }}{% endblock title %}
+{% block content %}
+    <div class="mb-3 no-print">
+        <a href="{% url 'stage_list' %}"
+           class="btn btn-sm btn-outline-light smart-back px-3">Назад</a>
+    </div>
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body py-4 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h2 class="mb-2 text-info fw-bold">Ввод результатов</h2>
+                <p class="text-muted mb-0 fs-5">
+                    Этап: <strong class="text-white" id="stage-name-display">{{ stage.name }}</strong> |
+                    Ед. измерения: <strong class="text-white">{{ stage.type.measure_unit }}</strong>
+                </p>
             </div>
-            <div class="card shadow-sm p-3 bg-white rounded">
-                <h4 class="h6 mb-2 text-muted">Последние внесенные результаты:</h4>
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped mb-0" style="font-size: 0.9rem;">
-                        <thead>
-                            <tr>
-                                <th>Участник</th>
-                                <th>Итог</th>
-                                <th>Штраф</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for res in recent_results %}
-                                <tr>
-                                    <td>{{ res.participant.full_name }}</td>
-                                    <td class="fw-bold">{{ res.value }}</td>
-                                    <td class="text-danger">{{ res.penalty_value }}</td>
-                                </tr>
-                            {% empty %}
-                                <tr>
-                                    <td colspan="3" class="text-center text-muted py-2">Записей еще нет</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+        </div>
+    </div>
+    <div id="offline-sync-banner"
+         class="card border-warning border-opacity-50 mb-4 d-none shadow-sm"
+         role="alert">
+        <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3 bg-warning bg-opacity-10 rounded">
+            <span class="text-warning">
+                <strong class="fw-bold">Автономный режим:</strong> Найдено <span id="local-records-count" class="fw-bold fs-5 text-white">0</span> результатов, сохраненных локально. Они будут отправлены в базу автоматически при восстановлении сети.
+            </span>
+            <div>
+                <button id="export-backup-btn"
+                        class="btn btn-sm btn-outline-warning fw-bold px-3">Скачать бэкап</button>
+            </div>
+        </div>
+    </div>
+    <div class="row g-4">
+        <div class="col-md-4 no-print">
+            <div class="card border-0 shadow-sm sticky-md-top">
+                <div class="card-body px-4 py-4">
+                    <h5 class="card-title text-info fw-bold mb-4 text-uppercase fs-6">Новая запись</h5>
+                    <form id="result-form" method="post" class="form-vega-wrapper">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="id_participant" class="form-label text-muted fw-bold">Участник</label>
+                            <select name="participant" class="form-select" id="id_participant" required>
+                                <option value="" selected disabled>-- Выберите спортсмена --</option>
+                                {% for p in participants %}
+                                    <option value="{{ p.id }}">{{ p.full_name }} (№{{ p.bib_number }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="id_value" class="form-label text-muted fw-bold">Результат ({{ stage.type.measure_unit }})</label>
+                            <input type="number"
+                                   step="0.001"
+                                   name="value"
+                                   class="form-control"
+                                   id="id_value"
+                                   required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="id_penalty_value" class="form-label text-muted fw-bold">Штраф (при наличии)</label>
+                            <input type="number"
+                                   step="0.001"
+                                   name="penalty_value"
+                                   class="form-control"
+                                   id="id_penalty_value"
+                                   value="0.000">
+                        </div>
+                        <div class="mb-4">
+                            <label for="id_comment" class="form-label text-muted fw-bold">Примечание</label>
+                            <textarea name="comment" class="form-control" id="id_comment" rows="2"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm py-2">Сохранить результат</button>
+                    </form>
                 </div>
             </div>
         </div>
-    </body>
-</html>
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body px-0 py-0">
+                    <div class="px-4 py-4 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title text-white fw-bold mb-0 text-uppercase fs-6">Протокол ввода</h5>
+                    </div>
+                    <div class="table-responsive px-2 pb-2">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="ps-3 py-3">Спортсмен</th>
+                                    <th class="py-3">Результат</th>
+                                    <th class="py-3">Штраф</th>
+                                    <th class="py-3">Примечание</th>
+                                    <th class="pe-3 py-3">Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in results %}
+                                    <tr>
+                                        <td class="ps-3">
+                                            <span class="text-white fw-bold">{{ r.participant.full_name }}</span>
+                                            <span class="text-muted ms-1 small">№{{ r.participant.bib_number }}</span>
+                                        </td>
+                                        <td class="fw-bold text-info fs-5">{{ r.value }}</td>
+                                        <td class="text-danger fw-bold">{{ r.penalty_value|default:"0.000" }}</td>
+                                        <td class="text-muted small">{{ r.comment|default:"—" }}</td>
+                                        <td class="pe-3">
+                                            <div class="d-flex align-items-center gap-2">
+                                                {% if r.is_verified %}
+                                                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1">Проверен</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-50 px-2 py-1">Ожидает</span>
+                                                    <a href="{% url 'edit_result' r.id %}"
+                                                       class="btn btn-sm btn-outline-warning py-0 px-2 requires-network">Изменить</a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr id="empty-table-row">
+                                        <td colspan="5" class="text-center text-muted py-5">
+                                            <div class="fs-5 mb-2">Нет данных</div>
+                                            <p class="m-0 small">Ожидание ввода первых результатов этапа</p>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <template id="new-row-template">
+        <tr>
+            <td class="ps-3">
+                <span class="js-name text-white fw-bold"></span>
+            </td>
+            <td class="fw-bold text-info fs-5 js-val"></td>
+            <td class="text-danger fw-bold js-pen"></td>
+            <td class="js-comm text-muted small"></td>
+            <td class="pe-3">
+                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-50 px-2 py-1 offline-badge">Ожидает</span>
+            </td>
+        </tr>
+    </template>
+    <script>
+        const STAGE_ID = "{{ stage.id }}";
+        const CSRF_TOKEN = "{{ csrf_token }}";
+
+        // ==========================================
+        // 1. БАЗОВЫЕ ФУНКЦИИ И ПОМОЩНИКИ
+        // ==========================================
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== "") {
+                const cookies = document.cookie.split(";");
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        function renderResultRow(pName, val, pen, comm, isOffline = false) {
+            const template = document.getElementById("new-row-template");
+            const clone = template.content.cloneNode(true);
+
+            clone.querySelector(".js-name").textContent = pName;
+            clone.querySelector(".js-val").textContent = val;
+            clone.querySelector(".js-pen").textContent = pen;
+            clone.querySelector(".js-comm").textContent = comm || "—";
+
+            if (isOffline) {
+                const rowElement = clone.querySelector("tr") || clone.firstElementChild;
+                if (rowElement) {
+                    rowElement.classList.add("offline-row", "offline-row-border");
+                    rowElement.title = "Ожидает синхронизации с сервером";
+                }
+                const badge = clone.querySelector(".offline-badge");
+                if (badge) {
+                    badge.textContent = "В очереди";
+                    badge.className = "badge bg-secondary bg-opacity-25 text-light border border-secondary border-opacity-50 px-2 py-1 offline-badge";
+                }
+            }
+
+            document.querySelector("table tbody").prepend(clone);
+
+            const emptyRow = document.getElementById("empty-table-row");
+            if (emptyRow) emptyRow.remove();
+        }
+
+        function resetForm() {
+            document.getElementById("result-form").reset();
+            document.getElementById("id_penalty_value").value = "0.000";
+        }
+
+        // ==========================================
+        // 2. РАБОТА С ОФЛАЙН-ХРАНИЛИЩЕМ (LocalStorage)
+        // ==========================================
+
+        function getStorageKey() {
+            return `offline_results_stage_${STAGE_ID}_user_{{ request.user.id }}`;
+        }
+
+        function getLocalRecords() {
+            return JSON.parse(localStorage.getItem(getStorageKey())) || [];
+        }
+
+        function saveLocalRecords(records) {
+            localStorage.setItem(getStorageKey(), JSON.stringify(records));
+            renderOfflineBanner();
+        }
+
+        function addRecordToStorage(record) {
+            const records = getLocalRecords();
+            records.push(record);
+            saveLocalRecords(records);
+        }
+
+        function removeRecordFromStorage(participantId) {
+            let records = getLocalRecords();
+            records = records.filter(r => r.participantId !== participantId.toString());
+            saveLocalRecords(records);
+        }
+
+        function renderOfflineBanner() {
+            const records = getLocalRecords();
+            const banner = document.getElementById("offline-sync-banner");
+            const countSpan = document.getElementById("local-records-count");
+
+            if (records.length > 0) {
+                banner.classList.remove("d-none");
+                countSpan.textContent = records.length;
+            } else {
+                banner.classList.add("d-none");
+            }
+        }
+
+        // ==========================================
+        // 3. ОСНОВНАЯ ЛОГИКА (ОТПРАВКА И АВТО-СИНХРОНИЗАЦИЯ)
+        // ==========================================
+
+        document.getElementById("result-form").addEventListener("submit", function(e) {
+            e.preventDefault();
+
+            const participantSelect = document.getElementById("id_participant");
+            const pId = participantSelect.value;
+            const selectedIndex = participantSelect.selectedIndex;
+
+            if (!pId) return;
+
+            const pName = participantSelect.options[selectedIndex].text;
+            const val = document.getElementById("id_value").value;
+            const pen = document.getElementById("id_penalty_value").value || "0.000";
+            const comm = document.getElementById("id_comment").value || "";
+
+            if (navigator.onLine) {
+                sendDataToServer(pId, pName, val, pen, comm, selectedIndex);
+            } else {
+                addRecordToStorage({
+                    participantId: pId,
+                    participantName: pName,
+                    value: val,
+                    penalty_value: pen,
+                    comment: comm,
+                    timestamp: new Date().getTime()
+                });
+                participantSelect.remove(selectedIndex);
+                renderResultRow(pName, val, pen, comm, true);
+                resetForm();
+            }
+        });
+
+        function sendDataToServer(pId, pName, val, pen, comm, selectedIndex) {
+            const formData = new FormData();
+            formData.append("participant", pId);
+            formData.append("value", val);
+            formData.append("penalty_value", pen);
+            formData.append("comment", comm);
+
+            return fetch(window.location.href, {
+                    method: "POST",
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                        "X-CSRFToken": getCookie("csrftoken") || CSRF_TOKEN
+                    },
+                    body: formData
+                })
+                .then(async response => {
+                    if (response.ok) {
+                        if (selectedIndex !== undefined) {
+                            const participantSelect = document.getElementById("id_participant");
+                            participantSelect.remove(selectedIndex);
+                            renderResultRow(pName, val, pen, comm, false);
+                            resetForm();
+                        }
+                        removeRecordFromStorage(pId);
+                    } else if (response.status === 400) {
+                        removeRecordFromStorage(pId);
+                    }
+                })
+                .catch(error => {
+                    console.warn("Ошибка сети во время отправки! Перехватываем:", error);
+                    if (selectedIndex !== undefined) {
+                        addRecordToStorage({
+                            participantId: pId,
+                            participantName: pName,
+                            value: val,
+                            penalty_value: pen,
+                            comment: comm,
+                            timestamp: new Date().getTime()
+                        });
+                        const participantSelect = document.getElementById("id_participant");
+                        participantSelect.remove(selectedIndex);
+                        renderResultRow(pName, val, pen, comm, true);
+                        resetForm();
+                    }
+                });
+        }
+
+        function syncOfflineData() {
+            const records = getLocalRecords();
+            if (records.length === 0) return;
+
+            console.log("Сеть восстановлена. Начинаем тихую фоновую синхронизацию...");
+
+            let chain = Promise.resolve();
+            records.forEach(r => {
+                chain = chain.then(() => {
+                    return sendDataToServer(r.participantId, r.participantName, r.value, r.penalty_value, r.comment, undefined);
+                });
+            });
+
+            chain.then(() => {
+                document.querySelectorAll(".offline-row").forEach(row => {
+                    row.classList.remove("offline-row-border", "offline-row");
+                    row.classList.add("synced-row-border");
+                    row.title = "Синхронизировано";
+
+                    const badge = row.querySelector(".offline-badge");
+                    if (badge) {
+                        badge.textContent = "Отправлен";
+                        badge.className = "badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1";
+                    }
+                });
+                renderOfflineBanner();
+            });
+        }
+
+        window.addEventListener('online', syncOfflineData);
+        window.addEventListener('server-back-online', syncOfflineData);
+
+        // ==========================================
+        // 4. ВОССТАНОВЛЕНИЕ И БЭКАП
+        // ==========================================
+
+        function restoreOfflineUI() {
+            const records = getLocalRecords();
+            const participantSelect = document.getElementById("id_participant");
+
+            records.forEach(r => {
+                if (participantSelect) {
+                    for (let i = 0; i < participantSelect.options.length; i++) {
+                        if (participantSelect.options[i].value === r.participantId.toString()) {
+                            participantSelect.remove(i);
+                            break;
+                        }
+                    }
+                }
+                renderResultRow(r.participantName, r.value, r.penalty_value, r.comment, true);
+            });
+        }
+
+        document.getElementById("export-backup-btn").addEventListener("click", function() {
+            const records = getLocalRecords();
+            if (records.length === 0) {
+                alert("Нет данных для сохранения.");
+                return;
+            }
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(records, null, 2));
+            const downloadAnchorNode = document.createElement("a");
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `Офлайн_бэкап_Этап_${STAGE_ID}_${new Date().toLocaleDateString()}.json`);
+
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+
+            alert("Резервная копия успешно скачана! Этот файл можно будет передать Главному судье.");
+        });
+
+        renderOfflineBanner();
+        document.addEventListener("DOMContentLoaded", restoreOfflineUI);
+    </script>
+{% endblock content %}

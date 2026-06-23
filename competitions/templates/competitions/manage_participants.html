@@ -1,87 +1,86 @@
-<!DOCTYPE html>
-<html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <title>Участники соревнований</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              rel="stylesheet">
-    </head>
-    <body class="bg-light">
-        <div class="container py-4">
-            <h2 class="mb-3">Управление: <span class="text-primary">{{ competition.title }}</span></h2>
-            <ul class="nav nav-tabs mb-4">
-                <li class="nav-item">
-                    <a href="{% url 'organizer_competitions' %}"
-                       class="btn btn-sm btn-outline-secondary">← К списку соревнований</a>
-                </li>
-            </ul>
-            <ul class="nav nav-tabs mb-4">
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'manage_stages' competition.id %}">⚙️ Этапы</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'manage_teams' competition.id %}">🛡️ Команды (Отряды)</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link active fw-bold"
-                       href="{% url 'manage_participants' competition.id %}">🏃 Участники</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link"
-                       href="{% url 'competition_summary' competition.id %}">📊 Сводные итоги</a>
-                </li>
-            </ul>
-            <div class="row g-4">
-                <div class="col-md-4">
-                    <div class="card shadow-sm p-4 bg-white rounded">
-                        <h4 class="h5 mb-3">Регистрация спортсмена</h4>
-                        <form method="post">
-                            {% csrf_token %}
-                            <div class="mb-3">
-                                <label class="form-label">ФИО участника</label>
-                                {{ form.full_name }}
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Стартовый номер (нагрудный)</label>
-                                {{ form.bib_number }}
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Добавить в список</button>
-                        </form>
-                    </div>
+{% extends "competitions/components/base.html" %}
+{% block title %}Участники: {{ competition.title }}{% endblock title %}
+{% block content %}
+    <div class="mb-3 no-print">
+        <a href="{% url 'competition_panel' competition.id %}"
+           class="btn btn-sm btn-outline-light smart-back px-3">Назад</a>
+    </div>
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body py-4 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h2 class="mb-1 text-info fw-bold">Управление участниками</h2>
+                <p class="text-muted mb-0 fs-5">Турнир: <strong class="text-white">{{ competition.title }}</strong></p>
+            </div>
+            {% if participants %}
+                <form method="post" class="m-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_all">
+                    <button type="submit"
+                            class="btn btn-outline-danger shadow-sm requires-network"
+                            data-vega-confirm="КРИТИЧЕСКОЕ ДЕЙСТВИЕ: Вы уверены, что хотите удалить ВСЕХ участников этого турнира из базы?">
+                        Удалить всех
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="row g-4">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body px-4 py-4">
+                    <h4 class="mb-4 text-white fw-bold">Регистрация</h4>
+                    <form method="post" class="form-vega-wrapper">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+                        <button type="submit"
+                                class="btn btn-info w-100 mt-2 fw-bold shadow-sm requires-network">Зарегистрировать</button>
+                    </form>
                 </div>
-                <div class="col-md-8">
-                    <div class="card shadow-sm p-3 bg-white rounded">
-                        <h4 class="h5 mb-3 text-muted">Список заявленных участников</h4>
+            </div>
+        </div>
+        <div class="col-md-8 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body px-4 py-4">
+                    <h4 class="mb-4 text-white fw-bold">База спортсменов</h4>
+                    {% if participants %}
                         <div class="table-responsive">
-                            <table class="table table-striped table-sm mb-0">
+                            <table class="table table-hover align-middle m-0">
                                 <thead>
                                     <tr>
-                                        <th style="width: 20%;">Номер</th>
-                                        <th>ФИО Участника</th>
+                                        <th>№</th>
+                                        <th>ФИО</th>
+                                        <th class="text-end">Действие</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for p in participants %}
+                                    {% for part in participants %}
                                         <tr>
-                                            <td><span class="badge bg-dark px-2.5 py-1.5">{{ p.bib_number }}</span></td>
-                                            <td><strong>{{ p.full_name }}</strong></td>
+                                            <td class="text-info fw-bold">{{ part.bib_number|default:"-" }}</td>
+                                            <td class="fw-bold text-white">{{ part.full_name }}</td>
                                             <td class="text-end">
-                                                <a href="{% url 'delete_participant' p.id %}"
-                                                   class="btn btn-sm btn-outline-danger"
-                                                   onclick="return confirm('Удалить участника? Все его результаты также будут удалены.');">✖</a>
+                                                <div class="d-flex justify-content-end gap-2">
+                                                    <a href="{% url 'edit_participant' part.id %}"
+                                                       class="btn btn-sm btn-outline-light requires-network">Изменить</a>
+                                                    <form action="{% url 'delete_participant' part.id %}"
+                                                          method="post"
+                                                          class="m-0">
+                                                        {% csrf_token %}
+                                                        <button type="submit"
+                                                                class="btn btn-sm btn-outline-danger requires-network"
+                                                                data-vega-confirm="Отменить регистрацию участника {{ part.full_name }}?">Удалить</button>
+                                                    </form>
+                                                </div>
                                             </td>
-                                        </tr>
-                                    {% empty %}
-                                        <tr>
-                                            <td colspan="2" class="text-center text-muted py-3">Спортсмены еще не зарегистрированы.</td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    {% else %}
+                        <p class="text-muted m-0 fs-5 text-center py-5">Пока никто не зарегистрирован.</p>
+                    {% endif %}
                 </div>
             </div>
         </div>
-    </body>
-</html>
+    </div>
+{% endblock content %}

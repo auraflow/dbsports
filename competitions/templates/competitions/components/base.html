@@ -1,0 +1,322 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <link rel="manifest" href="/manifest.json">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="keywords"
+              content="спорт, соревнования, учет, результаты, турнирная таблица, судейство, организатор, главный судья">
+        <meta name="description"
+              content="Автоматизированная система учета спортивных соревнований">
+        <title>{% block title %}Спортивный Учет{% endblock title %}</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+              rel="stylesheet">
+        <link rel="stylesheet" href="{% static 'css/style.css' %}?v=2.1">
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then(registration => console.log('ServiceWorker успешно зарегистрирован'))
+                        .catch(error => console.log('Ошибка регистрации ServiceWorker:', error));
+                });
+            }
+        </script>
+    </head>
+    <body class="{% block body_class %}vega-theme{% endblock body_class %}">
+        {% include "competitions/components/navbar.html" %}
+        <main class="container mt-4 mb-4">
+            {% block content %}
+            {% endblock content %}
+        </main>
+        {% include "competitions/components/footer.html" %}
+        <div class="modal fade"
+             id="vegaConfirmModal"
+             tabindex="-1"
+             aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-header border-secondary border-opacity-25">
+                        <h5 class="modal-title text-info fw-bold" id="vegaConfirmTitle">Подтверждение действия</h5>
+                        <button type="button"
+                                class="btn-close btn-close-white"
+                                data-bs-dismiss="modal"
+                                aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body fs-5 text-white" id="vegaConfirmMessage">Вы уверены?</div>
+                    <div class="modal-footer border-secondary border-opacity-25">
+                        <button type="button"
+                                class="btn btn-outline-light px-4"
+                                data-bs-dismiss="modal">Отмена</button>
+                        <button type="button"
+                                class="btn btn-danger px-4 shadow-sm"
+                                id="vegaConfirmBtn">Подтвердить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const globalNetBadge = document.getElementById('global-network-status');
+                let isCurrentlyOffline = !navigator.onLine;
+
+                function applyNetworkState(isOffline) {
+                    if (globalNetBadge) {
+                        if (isOffline) {
+                            globalNetBadge.className = "badge bg-danger shadow-sm p-2";
+                            globalNetBadge.innerText = "Офлайн";
+                        } else {
+                            globalNetBadge.className = "badge bg-success shadow-sm p-2";
+                            globalNetBadge.innerText = "Онлайн";
+                        }
+                    }
+
+                    const actionElements = document.querySelectorAll('.requires-network');
+                    actionElements.forEach(el => {
+                        if (isOffline) {
+                            el.classList.add('disabled', 'pointer-disabled');
+                            el.classList.remove('pointer-auto');
+                            if (!el.dataset.oldHtml) el.dataset.oldHtml = el.innerHTML;
+                            el.innerHTML = "Офлайн";
+                            if (el.tagName === 'BUTTON') el.disabled = true;
+                        } else {
+                            el.classList.remove('disabled', 'pointer-disabled');
+                            el.classList.add('pointer-auto');
+                            if (el.dataset.oldHtml) el.innerHTML = el.dataset.oldHtml;
+                            if (el.tagName === 'BUTTON') el.disabled = false;
+                        }
+                    });
+
+                    const postForms = document.querySelectorAll('form[method="post"]:not(#result-form)');
+                    postForms.forEach(form => {
+                        form.addEventListener('submit', function() {
+                            sessionStorage.setItem('cache_outdated', 'true');
+                        });
+
+                        const buttons = form.querySelectorAll('button[type="submit"]');
+                        buttons.forEach(btn => {
+                            if (isOffline) {
+                                btn.disabled = true;
+                                if (!btn.dataset.oldHtml) btn.dataset.oldHtml = btn.innerHTML;
+                                btn.innerHTML = "Офлайн";
+                                btn.title = "Действие требует подключения к серверу";
+                            } else {
+                                btn.disabled = false;
+                                if (btn.dataset.oldHtml) btn.innerHTML = btn.dataset.oldHtml;
+                                btn.title = "";
+                            }
+                        });
+                    });
+
+                    if (isCurrentlyOffline && !isOffline) {
+                        console.log("Пульс сервера восстановлен! Запускаем глобальную синхронизацию...");
+                        window.dispatchEvent(new CustomEvent('server-back-online'));
+                    }
+                    isCurrentlyOffline = isOffline;
+                }
+
+                async function checkServerHealth() {
+                    if (!navigator.onLine) {
+                        applyNetworkState(true);
+                        return;
+                    }
+                    try {
+                        const response = await fetch('/ping/', {
+                            method: 'GET',
+                            cache: 'no-store'
+                        });
+                        if (response.ok) {
+                            applyNetworkState(false);
+                        } else {
+                            applyNetworkState(true);
+                        }
+                    } catch (error) {
+                        applyNetworkState(true);
+                    }
+                }
+
+                window.addEventListener('online', checkServerHealth);
+                window.addEventListener('offline', () => applyNetworkState(true));
+
+                checkServerHealth();
+                setInterval(checkServerHealth, 10000);
+
+                const backButtons = document.querySelectorAll(".smart-back");
+                backButtons.forEach(btn => {
+                    btn.addEventListener("click", function(e) {
+                        if (document.referrer && document.referrer.includes(window.location.host)) {
+                            e.preventDefault();
+                            window.history.back();
+                        }
+                    });
+                });
+
+                // --- ЛОГИКА ГЛОБАЛЬНОГО МОДАЛЬНОГО ОКНА ПОДТВЕРЖДЕНИЯ ---
+                let formToSubmit = null;
+                const confirmModalEl = document.getElementById('vegaConfirmModal');
+                if (confirmModalEl) {
+                    const confirmModal = new bootstrap.Modal(confirmModalEl);
+                    const confirmMessageEl = document.getElementById('vegaConfirmMessage');
+                    const confirmBtn = document.getElementById('vegaConfirmBtn');
+
+                    document.querySelectorAll('[data-vega-confirm]').forEach(button => {
+                        button.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            formToSubmit = this.closest('form');
+
+                            confirmMessageEl.textContent = this.getAttribute('data-vega-confirm');
+
+                            if (this.classList.contains('btn-danger') || this.classList.contains('btn-outline-danger')) {
+                                confirmBtn.className = 'btn btn-danger px-4 shadow-sm';
+                                confirmBtn.textContent = 'Да, удалить';
+                            } else {
+                                confirmBtn.className = 'btn btn-info text-dark fw-bold px-4 shadow-sm';
+                                confirmBtn.textContent = 'Выполнить';
+                            }
+
+                            confirmModal.show();
+                        });
+                    });
+
+                    confirmBtn.addEventListener('click', function() {
+                        if (formToSubmit) {
+                            sessionStorage.setItem('cache_outdated', 'true');
+                            formToSubmit.submit();
+                        }
+                        confirmModal.hide();
+                    });
+                }
+            });
+        </script>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const cacheBtn = document.getElementById('manual-cache-btn');
+
+                if (cacheBtn && 'serviceWorker' in navigator) {
+                    if (sessionStorage.getItem('cache_outdated') === 'true') {
+                        cacheBtn.classList.remove('btn-outline-light');
+                        cacheBtn.classList.add('btn-warning', 'text-dark', 'fw-bold', 'shadow-lg');
+                        cacheBtn.innerHTML = 'Обновить базу';
+                        cacheBtn.title = "Данные были изменены! Нажмите, чтобы обновить вашу офлайн-копию.";
+                    }
+
+                    cacheBtn.addEventListener('click', function() {
+                        if (!navigator.onLine) {
+                            alert("Для скачивания базы необходимо подключение к интернету!");
+                            return;
+                        }
+
+                        cacheBtn.innerHTML = "Загрузка...";
+                        cacheBtn.classList.add('disabled', 'pointer-disabled');
+                        cacheBtn.classList.remove('pointer-auto');
+
+                        fetch('/offline-manifest/', {
+                                cache: 'no-store'
+                            })
+                            .then(response => {
+                                if (!response.ok) throw new Error("Сервер недоступен или сессия истекла");
+                                return response.json();
+                            })
+                            .then(data => {
+                                const urls = data.urls;
+                                if (!urls || urls.length === 0) {
+                                    cacheBtn.innerHTML = "Нет данных";
+                                    setTimeout(() => restoreBtn(), 3000);
+                                    return;
+                                }
+
+                                let i = 0;
+
+                                function fetchNext() {
+                                    if (i >= urls.length) {
+                                        sessionStorage.removeItem('cache_outdated');
+                                        showOfflineReadyToast();
+                                        cacheBtn.innerHTML = "Готово";
+                                        cacheBtn.classList.remove('btn-outline-light', 'btn-warning', 'text-dark', 'fw-bold', 'shadow-lg');
+                                        cacheBtn.classList.add('btn-success', 'text-white');
+                                        setTimeout(() => restoreBtn(), 5000);
+                                        return;
+                                    }
+
+                                    fetch(urls[i], {
+                                            method: 'GET',
+                                            credentials: 'same-origin',
+                                            headers: {
+                                                'Accept': 'text/html'
+                                            }
+                                        })
+                                        .then(() => {
+                                            i++;
+                                            fetchNext();
+                                        })
+                                        .catch(() => {
+                                            i++;
+                                            fetchNext();
+                                        });
+                                }
+                                fetchNext();
+                            })
+                            .catch(err => {
+                                cacheBtn.innerHTML = "Ошибка";
+                                setTimeout(() => restoreBtn(), 3000);
+                            });
+
+                        function restoreBtn() {
+                            cacheBtn.innerHTML = "Скачать базу";
+                            cacheBtn.classList.remove('disabled', 'btn-success', 'btn-warning', 'text-dark', 'fw-bold', 'shadow-lg', 'pointer-disabled');
+                            cacheBtn.classList.add('btn-outline-light', 'text-white', 'pointer-auto');
+                        }
+                    });
+                }
+            });
+
+            function showOfflineReadyToast() {
+                const toastHtml = `
+                    <div id="prefetch-toast" class="toast align-items-center text-bg-success border-0 position-fixed bottom-0 end-0 m-3 shadow-lg toast-high-z" role="alert" data-bs-delay="4000">
+                      <div class="d-flex">
+                        <div class="toast-body fw-bold">
+                          База обновлена. Полный офлайн доступ включен.
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                      </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', toastHtml);
+                const toastEl = document.getElementById('prefetch-toast');
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+        </script>
+        {% if messages %}
+            <div class="toast-container position-fixed bottom-0 end-0 p-3 toast-high-z">
+                {% for message in messages %}
+                    <div class="toast align-items-center text-bg-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning text-dark{% else %}info text-dark{% endif %} border-0 shadow-lg mb-2"
+                         role="alert"
+                         aria-live="assertive"
+                         aria-atomic="true"
+                         data-bs-delay="5000">
+                        <div class="d-flex">
+                            <div class="toast-body fw-bold text-white {% if message.tags == 'warning' or message.tags == 'info' %}text-dark{% endif %}">
+                                {{ message }}
+                            </div>
+                            <button type="button"
+                                    class="btn-close {% if message.tags != 'warning' and message.tags != 'info' %}btn-close-white{% endif %} me-2 m-auto"
+                                    data-bs-dismiss="toast"
+                                    aria-label="Закрыть"></button>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    var toastElList = [].slice.call(document.querySelectorAll('.toast'));
+                    var toastList = toastElList.map(function(toastEl) {
+                        return new bootstrap.Toast(toastEl);
+                    });
+                    toastList.forEach(toast => toast.show());
+                });
+            </script>
+        {% endif %}
+    </body>
+</html>

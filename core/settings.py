@@ -11,6 +11,10 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+# === ОПТИМИЗАЦИЯ SQLITE ДЛЯ ПАРАЛЛЕЛЬНОЙ СИНХРОНИЗАЦИИ ===
+from django.db.backends.signals import connection_created
+from django.dispatch import receiver
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,10 +28,7 @@ SECRET_KEY = 'django-insecure-z&6y*=03w%pia*tr##xvbt(ojznz8ucmy+^fcaksh-gvj%+0m-
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-
-ALLOWED_HOSTS = []
-
-
+ 
 # Application definition
 
 INSTALLED_APPS = [
@@ -75,14 +76,12 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'sports_accounting',      # Имя созданной базы данных
-        'USER': 'postgres',     # Твой логин в PostgreSQL (обычно postgres)
-        'PASSWORD': 'admin',      # Твой пароль от PostgreSQL
-        'HOST': '127.0.0.1',              # Локальный сервер
-        'PORT': '5432',                   # Стандартный порт PostgreSQL
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
         'OPTIONS': {
-            'options': '-c lc_messages=en_US.UTF-8'
+            # Увеличиваем таймаут: если база занята другим судьей, 
+            # Django подождет 20 секунд, а не упадет сразу с ошибкой
+            'timeout': 20, 
         }
     }
 }
@@ -106,13 +105,21 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+@receiver(connection_created)
+def configure_sqlite_wal(sender, connection, **kwargs):
+    if connection.vendor == 'sqlite':
+        cursor = connection.cursor()
+        cursor.execute('PRAGMA journal_mode=WAL;')
+        cursor.execute('PRAGMA synchronous=NORMAL;')
+        cursor.execute('PRAGMA cache_size=-64000;') # Выделяем 64МБ RAM под кэш
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Moscow'
 
 USE_I18N = True
 
@@ -121,6 +128,8 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
+STATIC_URL = 'static/'
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 STATIC_URL = 'static/'
 AUTH_USER_MODEL = 'competitions.User'
