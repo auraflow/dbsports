@@ -3,29 +3,40 @@
 {% block content %}
     <div class="mb-3 no-print">
         <a href="{% url 'chief_stage_list' %}"
-           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+           class="btn btn-sm btn-outline-light smart-back px-3">Назад</a>
     </div>
-    <div class="card mb-4">
-        <div class="card-body py-4">
-            <h2 class="mb-1 text-warning">⚖️ Проверка: {{ stage.name }}</h2>
-            <p class="text-muted mb-0">Турнир: <strong class="text-light">{{ stage.competition.title }}</strong></p>
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body py-4 px-4">
+            <h2 class="mb-2 text-info fw-bold">Проверка: {{ stage.name }}</h2>
+            <p class="text-muted mb-0 fs-5">Турнир: <strong class="text-white">{{ stage.competition.title }}</strong></p>
         </div>
     </div>
-    <div class="card">
-        <div class="card-body py-4">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
-                <h4 class="m-0">Протокол этапа</h4>
+    <div class="card border-0 shadow-sm">
+        <div class="card-body py-4 px-4">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+                <h4 class="m-0 fw-bold text-white">Протокол этапа</h4>
                 {% if results %}
-                    <div class="d-flex gap-2">
+                    <div class="d-flex flex-wrap gap-2">
                         <form action="{% url 'verify_results_backend' stage.id %}"
                               method="post"
                               class="m-0">
                             {% csrf_token %}
                             <input type="hidden" name="action" value="verify_all">
                             <button type="submit"
-                                    class="btn btn-success fw-bold requires-network"
-                                    onclick="return confirm('Вы уверены, что хотите утвердить ВСЕ ожидающие результаты?');">
-                                ✅ Утвердить все
+                                    class="btn btn-success fw-bold requires-network shadow-sm text-nowrap"
+                                    data-vega-confirm="Вы уверены, что хотите утвердить ВСЕ ожидающие результаты?">
+                                Утвердить все
+                            </button>
+                        </form>
+                        <form action="{% url 'verify_results_backend' stage.id %}"
+                              method="post"
+                              class="m-0">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="unverify_all">
+                            <button type="submit"
+                                    class="btn btn-warning text-dark fw-bold requires-network shadow-sm text-nowrap"
+                                    data-vega-confirm="Вы уверены, что хотите снять верификацию со ВСЕХ результатов на этом этапе? (Они снова станут доступны для редактирования)">
+                                Отменить все
                             </button>
                         </form>
                         <form action="{% url 'verify_results_backend' stage.id %}"
@@ -34,9 +45,9 @@
                             {% csrf_token %}
                             <input type="hidden" name="action" value="delete_all">
                             <button type="submit"
-                                    class="btn btn-outline-danger requires-network"
-                                    onclick="return confirm('КРИТИЧЕСКОЕ ДЕЙСТВИЕ: Вы уверены, что хотите удалить ВСЕ результаты этого этапа?');">
-                                🗑️ Очистить этап
+                                    class="btn btn-outline-danger requires-network text-nowrap"
+                                    data-vega-confirm="КРИТИЧЕСКОЕ ДЕЙСТВИЕ: Вы уверены, что хотите безвозвратно удалить ВСЕ результаты этого этапа?">
+                                Очистить этап
                             </button>
                         </form>
                     </div>
@@ -44,9 +55,10 @@
             </div>
             {% if results %}
                 <div class="table-responsive">
-                    <table class="table align-middle m-0">
+                    <table class="table table-hover align-middle m-0">
                         <thead>
                             <tr>
+                                <th>№</th>
                                 <th>Участник</th>
                                 <th>Судья</th>
                                 <th>Результат</th>
@@ -58,57 +70,58 @@
                         <tbody>
                             {% for res in results %}
                                 <tr>
-                                    <td class="fw-bold">{{ res.participant.full_name }}</td>
+                                    <td class="text-info fw-bold">{{ res.participant.bib_number|default:"" }}</td>
+                                    <td class="fw-bold text-white">{{ res.participant.full_name }}</td>
                                     <td class="text-muted">{{ res.judge.username }}</td>
-                                    <td class="text-warning fw-bold">{{ res.value }}</td>
+                                    <td class="text-info fw-bold">{{ res.value }}</td>
                                     <td class="text-danger">{{ res.penalty_value|default:"0.000" }}</td>
                                     <td>
                                         {% if res.is_verified %}
-                                            <span class="text-success fw-bold">Верифицирован</span>
+                                            <span class="badge bg-success">Верифицирован</span>
                                         {% else %}
-                                            <span class="text-warning">Ожидает</span>
+                                            <span class="badge bg-warning text-dark">Ожидает</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-end">
-                                        <div class="d-flex justify-content-end flex-wrap gap-2">
+                                        <div class="d-flex justify-content-end flex-nowrap gap-2">
                                             {% if not res.is_verified %}
                                                 <form action="{% url 'verify_results_backend' stage.id %}"
                                                       method="post"
-                                                      class="d-inline">
+                                                      class="d-inline m-0">
                                                     {% csrf_token %}
                                                     <input type="hidden" name="result_id" value="{{ res.id }}">
                                                     <input type="hidden" name="action" value="verify">
                                                     <button type="submit"
-                                                            class="btn btn-sm btn-outline-success fw-bold requires-network">Подтвердить</button>
+                                                            class="btn btn-sm btn-outline-success fw-bold requires-network text-nowrap">Подтвердить</button>
                                                 </form>
                                                 <a href="{% url 'edit_result' res.id %}"
-                                                   class="btn btn-sm btn-outline-warning requires-network">Изменить</a>
+                                                   class="btn btn-sm btn-outline-light requires-network text-nowrap">Изменить</a>
                                                 <button type="button"
-                                                        class="btn btn-sm btn-outline-info requires-network"
+                                                        class="btn btn-sm btn-info text-dark fw-bold requires-network text-nowrap"
                                                         data-bs-toggle="modal"
                                                         data-bs-target="#penaltyModal{{ res.id }}">Штраф</button>
                                             {% else %}
                                                 <form action="{% url 'verify_results_backend' stage.id %}"
                                                       method="post"
-                                                      class="d-inline">
+                                                      class="d-inline m-0">
                                                     {% csrf_token %}
                                                     <input type="hidden" name="result_id" value="{{ res.id }}">
                                                     <input type="hidden" name="action" value="unverify">
                                                     <button type="submit"
-                                                            class="btn btn-sm btn-outline-warning requires-network"
+                                                            class="btn btn-sm btn-outline-warning requires-network text-nowrap"
                                                             title="Снять верификацию"
-                                                            onclick="return confirm('Отменить верификацию?');">Отменить</button>
+                                                            data-vega-confirm="Отменить верификацию этого результата?">Отменить</button>
                                                 </form>
                                             {% endif %}
                                             <form action="{% url 'verify_results_backend' stage.id %}"
                                                   method="post"
-                                                  class="d-inline">
+                                                  class="d-inline m-0">
                                                 {% csrf_token %}
                                                 <input type="hidden" name="result_id" value="{{ res.id }}">
                                                 <input type="hidden" name="action" value="delete">
                                                 <button type="submit"
-                                                        class="btn btn-sm btn-danger requires-network"
-                                                        onclick="return confirm('Удалить этот результат?');">Удалить</button>
+                                                        class="btn btn-sm btn-outline-danger requires-network text-nowrap"
+                                                        data-vega-confirm="Удалить этот результат?">Удалить</button>
                                             </form>
                                         </div>
                                         <div class="modal fade"
@@ -116,23 +129,25 @@
                                              tabindex="-1"
                                              aria-hidden="true">
                                             <div class="modal-dialog modal-dialog-centered text-start">
-                                                <div class="modal-content bg-dark text-light border-info">
-                                                    <div class="modal-header border-secondary">
-                                                        <h5 class="modal-title text-info">Изменение штрафа</h5>
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title text-info fw-bold">Изменение штрафа</h5>
                                                         <button type="button"
                                                                 class="btn-close btn-close-white requires-network"
                                                                 data-bs-dismiss="modal"
                                                                 aria-label="Закрыть"></button>
                                                     </div>
-                                                    <form action="{% url 'verify_results_backend' stage.id %}" method="post">
+                                                    <form action="{% url 'verify_results_backend' stage.id %}"
+                                                          method="post"
+                                                          class="form-vega-wrapper m-0">
                                                         {% csrf_token %}
                                                         <div class="modal-body">
-                                                            <p>Спортсмен: <strong class="text-warning">{{ res.participant.full_name }}</strong></p>
-                                                            <p>Текущий штраф: <strong class="text-danger">{{ res.penalty_value|default:"0.000" }}</strong></p>
+                                                            <p class="mb-1">Спортсмен: <strong class="text-white">{{ res.participant.full_name }}</strong></p>
+                                                            <p class="mb-3">Текущий штраф: <strong class="text-danger">{{ res.penalty_value|default:"0.000" }}</strong></p>
                                                             <input type="hidden" name="result_id" value="{{ res.id }}">
                                                             <input type="hidden" name="action" value="edit_penalty">
                                                             <div class="mb-3 mt-4">
-                                                                <label class="form-label text-muted">Новое значение штрафа:</label>
+                                                                <label class="form-label">Новое значение штрафа:</label>
                                                                 <input type="number"
                                                                        step="0.001"
                                                                        min="0"
@@ -142,7 +157,7 @@
                                                                        required>
                                                             </div>
                                                             <div class="mb-2">
-                                                                <label class="form-label text-muted">Обоснование (для журнала аудита):</label>
+                                                                <label class="form-label">Обоснование (для журнала аудита):</label>
                                                                 <input type="text"
                                                                        class="form-control"
                                                                        name="reason"
@@ -150,9 +165,11 @@
                                                                        required>
                                                             </div>
                                                         </div>
-                                                        <div class="modal-footer border-secondary">
-                                                            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Отмена</button>
-                                                            <button type="submit" class="btn btn-info fw-bold">Применить и утвердить</button>
+                                                        <div class="modal-footer">
+                                                            <button type="button"
+                                                                    class="btn btn-outline-light px-4"
+                                                                    data-bs-dismiss="modal">Отмена</button>
+                                                            <button type="submit" class="btn btn-info fw-bold px-4 text-dark shadow-sm">Применить и утвердить</button>
                                                         </div>
                                                     </form>
                                                 </div>
@@ -165,7 +182,7 @@
                     </table>
                 </div>
             {% else %}
-                <p class="text-muted m-0">В этом этапе пока нет ни одного результата.</p>
+                <p class="text-muted m-0 fs-5 text-center py-5">В этом этапе пока нет ни одного результата.</p>
             {% endif %}
         </div>
     </div>

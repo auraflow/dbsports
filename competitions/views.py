@@ -1,10 +1,10 @@
 import csv
 import openpyxl
+from django.http import HttpResponse, JsonResponse
 from functools import wraps
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from django.http import HttpResponse, JsonResponse
 from django.db.models import ProtectedError, Q 
 from django.contrib import messages
 from django.urls import reverse
@@ -424,7 +424,25 @@ def verify_results_backend(request, stage_id):
             messages.info(request, "На этом этапе нет результатов, ожидающих проверки.")
             
         return redirect('stage_verify_panel', stage_id=stage.id)
-
+    # === НОВЫЙ БЛОК: МАССОВАЯ ОТМЕНА ВЕРИФИКАЦИИ ===
+    elif action == 'unverify_all':
+        verified_results = Result.objects.filter(stage=stage, is_verified=True)
+        count = verified_results.count()
+        
+        if count > 0:
+            verified_results.update(is_verified=False)
+            AuditLog.objects.create(
+                user=request.user, 
+                competition=stage.competition,
+                action="Массовая отмена верификации",
+                details=f"Главный судья массово снял верификацию со всех утвержденных результатов ({count} шт.) на этапе «{stage.name}»."
+            )
+            messages.warning(request, f"Верификация снята с {count} результатов. Они снова доступны для редактирования судьями.")
+        else:
+            messages.info(request, "На этом этапе нет утвержденных результатов для отмены.")
+            
+        return redirect('stage_verify_panel', stage_id=stage.id)
+    # ===============================================
     elif action == 'delete_all':
         # Выбираем абсолютно все результаты этого этапа
         all_results = Result.objects.filter(stage=stage)

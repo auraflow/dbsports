@@ -3,7 +3,7 @@
 {% block content %}
     <div class="mb-3 no-print">
         <a href="{% url 'organizer_competitions' %}"
-           class="btn btn-sm btn-outline-light smart-back">Назад</a>
+           class="btn btn-sm btn-outline-light smart-back px-3">Назад</a>
     </div>
     <div class="card mb-4 border-0 shadow-sm">
         <div class="card-body py-4 px-4">
@@ -18,13 +18,13 @@
                 <div>
                     <form action="{% url 'toggle_archive' competition.id %}"
                           method="post"
-                          class="d-inline">
+                          class="m-0 d-inline">
                         {% csrf_token %}
                         <a href="{% url 'edit_competition' competition.id %}"
-                           class="btn btn-outline-light requires-network px-3">Настройки</a>
+                           class="btn btn-info requires-network px-4 shadow-sm">Настройки</a>
                         <button type="submit"
-                                class="btn btn-outline-danger px-3"
-                                onclick="return confirm('Отправить турнир в архив?');">В архив</button>
+                                class="btn btn-outline-danger px-4 shadow-sm"
+                                data-vega-confirm="Отправить турнир в архив?">В архив</button>
                     </form>
                 </div>
             </div>
@@ -42,7 +42,7 @@
                 </div>
                 <div>
                     <a href="{% url 'manage_stages' competition.id %}"
-                       class="btn btn-info text-nowrap w-100 px-4">Настроить этапы</a>
+                       class="btn btn-info text-nowrap w-100 px-4 shadow-sm">Настроить этапы</a>
                 </div>
             </div>
         </div>
@@ -57,7 +57,7 @@
                 </div>
                 <div>
                     <a href="{% url 'manage_participants' competition.id %}"
-                       class="btn btn-info text-nowrap w-100 px-4">База участников</a>
+                       class="btn btn-info text-nowrap w-100 px-4 shadow-sm">База участников</a>
                 </div>
             </div>
         </div>
@@ -73,7 +73,7 @@
                     </div>
                     <div>
                         <a href="{% url 'manage_teams' competition.id %}"
-                           class="btn btn-info text-nowrap w-100 px-4">Составы команд</a>
+                           class="btn btn-info text-nowrap w-100 px-4 shadow-sm">Составы команд</a>
                     </div>
                 </div>
             </div>
@@ -84,14 +84,14 @@
                     <a href="{% url 'competition_summary' competition.id %}"
                        class="btn btn-success text-nowrap flex-grow-1 shadow-sm">Итоговая таблица</a>
                     <a href="{% url 'print_protocol' competition.id %}"
-                       class="btn btn-outline-light text-nowrap flex-grow-1 requires-network">Протокол (PDF)</a>
+                       class="btn btn-info text-nowrap flex-grow-1 shadow-sm requires-network">Протокол (PDF)</a>
                     <div class="dropdown flex-grow-1">
                         <button class="btn btn-primary text-nowrap w-100 dropdown-toggle requires-network shadow-sm"
                                 type="button"
                                 id="exportDropdown"
                                 data-bs-toggle="dropdown"
                                 aria-expanded="false">Скачать таблицу</button>
-                        <ul class="dropdown-menu dropdown-menu-dark w-100 shadow-sm border-0"
+                        <ul class="dropdown-menu w-100 shadow-sm border-0"
                             aria-labelledby="exportDropdown">
                             <li>
                                 <a class="dropdown-item requires-network py-2"

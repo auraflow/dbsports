@@ -1,203 +1,307 @@
 {% extends "competitions/components/base.html" %}
-{% block title %}Официальный протокол: {{ competition.title }}{% endblock title %}
-{% block body_class %}protocol-body{% endblock body_class %}
+{% block title %}Экспорт протокола: {{ competition.title }}{% endblock title %}
 {% block content %}
-    <div class="no-print">
-        <div class="mb-3 no-print">
-            <a href="{% url 'competition_panel' competition.id %}"
-               class="btn btn-sm btn-outline-light smart-back">← Назад</a>
-        </div>
-        <div class="protocol-export-panel">
-            <span class="protocol-panel-text">Включить в документ:</span>
-            <label class="protocol-checkbox-label">
-                <input type="checkbox"
-                       id="check-ind"
-                       class="protocol-checkbox-input"
-                       checked
-                       onchange="toggleSheets()">
-                Личный зачет
-            </label>
-            {% if competition.has_team %}
-                <label class="protocol-checkbox-label">
-                    <input type="checkbox"
-                           id="check-team"
-                           class="protocol-checkbox-input"
-                           checked
-                           onchange="toggleSheets()">
-                    Командный зачет
-                </label>
-            {% endif %}
-            <div class="protocol-btn-wrap">
-                <button onclick="downloadSmartPDF()" class="btn btn-success fw-bold">📥 Скачать PDF</button>
+    <div class="mb-3">
+        <a href="{% url 'competition_panel' competition.id %}"
+           class="btn btn-sm btn-outline-light smart-back">Назад</a>
+    </div>
+    <div class="card border-0 shadow-sm mb-4 bg-dark">
+        <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 py-4 px-4">
+            <div class="d-flex align-items-center gap-4 flex-wrap">
+                <span class="text-info fw-bold m-0 fs-5">Включить в документ:</span>
+                <div class="form-check form-switch m-0">
+                    <input type="checkbox" id="check-ind" class="form-check-input" checked>
+                    <label class="form-check-label text-white" for="check-ind">Личный зачет</label>
+                </div>
+                {% if competition.has_team %}
+                    <div class="form-check form-switch m-0">
+                        <input type="checkbox" id="check-team" class="form-check-input" checked>
+                        <label class="form-check-label text-white" for="check-team">Командный зачет</label>
+                    </div>
+                {% endif %}
+            </div>
+            <div>
+                <button onclick="generateVectorPDF()"
+                        id="download-btn"
+                        class="btn btn-success fw-bold shadow-sm px-4 py-2">Скачать PDF</button>
             </div>
         </div>
     </div>
-    <div id="protocol-container">
-        <div id="sheet-ind" class="protocol-sheet">
-            <div class="protocol-doc-header">
-                <h1>ОФИЦИАЛЬНЫЙ ПРОТОКОЛ СОРЕВНОВАНИЙ</h1>
-                <h2>«{{ competition.title }}»</h2>
-                <p>Дата: {{ competition.start_date|date:"d.m.Y" }} | Статус: {{ competition.status }}</p>
-            </div>
-            <div class="protocol-section-title">Личный зачет</div>
-            {% if individual_summary %}
-                <table class="protocol-table">
-                    <thead>
-                        <tr>
-                            <th class="protocol-col-place">Место</th>
-                            <th class="protocol-col-name">Участник</th>
-                            <th class="protocol-col-penalty">Штраф</th>
-                            <th class="protocol-col-score">Итог</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in individual_summary %}
-                            <tr>
-                                <td class="protocol-col-place">
-                                    {% if row.has_results %}
-                                        {{ forloop.counter }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td class="protocol-col-name">{{ row.participant.full_name }}</td>
-                                <td class="protocol-col-penalty">{{ row.total_penalty|default:"0.000" }}</td>
-                                <td class="protocol-col-score">
-                                    {% if row.has_results %}
-                                        {{ row.final_score|floatformat:3 }}
-                                    {% else %}
-                                        Нет
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p class="protocol-text-center">Результаты личного зачета не сформированы.</p>
-            {% endif %}
-            <div class="protocol-signatures">
-                <div>Главный судья: ______________ / ____________ /</div>
-                <div>Организатор: ______________ / ____________ /</div>
-            </div>
-        </div>
+    <div style="display: none;">
+        <span id="comp-title">{{ competition.title }}</span>
+        <span id="comp-date">{{ competition.start_date|date:"d.m.Y" }}</span>
+        <span id="comp-status">{{ competition.status }}</span>
+        <table id="table-ind">
+            <thead>
+                <tr>
+                    <th>Место</th>
+                    <th>Участник</th>
+                    <th>Штраф</th>
+                    <th>Итог</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in individual_summary %}
+                    <tr>
+                        <td>
+                            {% if row.has_results %}
+                                {{ row.place }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ row.participant.full_name }}</td>
+                        <td>{{ row.total_penalty|default:"0.000" }}</td>
+                        <td>
+                            {% if row.has_results %}
+                                {{ row.final_score|floatformat:3 }}
+                            {% else %}
+                                Нет
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
         {% if competition.has_team %}
-            <div id="sheet-team" class="protocol-sheet">
-                <div class="protocol-doc-header">
-                    <h1>ОФИЦИАЛЬНЫЙ ПРОТОКОЛ СОРЕВНОВАНИЙ</h1>
-                    <h2>«{{ competition.title }}»</h2>
-                    <p>Дата: {{ competition.start_date|date:"d.m.Y" }} | Статус: {{ competition.status }}</p>
-                </div>
-                <div class="protocol-section-title">Командный зачет</div>
-                {% if team_summary %}
-                    <table class="protocol-table">
-                        <thead>
-                            <tr>
-                                <th class="protocol-col-place">Место</th>
-                                <th class="protocol-col-name">Команда</th>
-                                <th class="protocol-col-penalty">Участников</th>
-                                <th class="protocol-col-score">Итог</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in team_summary %}
-                                <tr>
-                                    <td class="protocol-col-place">
-                                        {% if row.team_score > 0 %}
-                                            {{ forloop.counter }}
-                                        {% else %}
-                                            -
-                                        {% endif %}
-                                    </td>
-                                    <td class="protocol-col-name">{{ row.team }}</td>
-                                    <td class="protocol-col-penalty">{{ row.members_count }}</td>
-                                    <td class="protocol-col-score">
-                                        {% if row.team_score > 0 %}
-                                            {{ row.team_score|floatformat:3 }}
-                                        {% else %}
-                                            Нет
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <p class="protocol-text-center">Командные результаты не сформированы.</p>
-                {% endif %}
-                <div class="protocol-signatures">
-                    <div>Главный судья: ______________ / ____________ /</div>
-                    <div>Организатор: ______________ / ____________ /</div>
-                </div>
-            </div>
+            <table id="table-team">
+                <thead>
+                    <tr>
+                        <th>Место</th>
+                        <th>Команда</th>
+                        <th>Участников</th>
+                        <th>Итог</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in team_summary %}
+                        <tr>
+                            <td>
+                                {% if row.team_score > 0 %}
+                                    {{ row.place }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ row.team }}</td>
+                            <td>{{ row.members_count }}</td>
+                            <td>
+                                {% if row.team_score > 0 %}
+                                    {{ row.team_score|floatformat:3 }}
+                                {% else %}
+                                    Нет
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         {% endif %}
     </div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script>
-        function toggleSheets() {
-            const checkInd = document.getElementById('check-ind');
-            const checkTeam = document.getElementById('check-team');
-            const sheetInd = document.getElementById('sheet-ind');
-            const sheetTeam = document.getElementById('sheet-team');
+        async function generateVectorPDF() {
+            const btn = document.getElementById('download-btn');
+            const originalText = btn.innerText;
+            btn.innerText = "Генерация...";
+            btn.classList.add("disabled");
 
-            if (sheetInd && checkInd) {
-                checkInd.checked ? sheetInd.classList.remove('protocol-hidden') : sheetInd.classList.add('protocol-hidden');
-            }
-            if (sheetTeam && checkTeam) {
-                checkTeam.checked ? sheetTeam.classList.remove('protocol-hidden') : sheetTeam.classList.add('protocol-hidden');
-            }
-        }
+            try {
+                const {
+                    jsPDF
+                } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4');
 
-        function downloadSmartPDF() {
-            const container = document.getElementById('protocol-container');
-            const sheets = Array.from(container.querySelectorAll('.protocol-sheet'));
-            const visibleSheets = sheets.filter(sheet => !sheet.classList.contains('protocol-hidden'));
+                // 1. Динамическая загрузка шрифта (Roboto) для поддержки кириллицы
+                const fontUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf';
+                const fontResponse = await fetch(fontUrl);
+                const fontBlob = await fontResponse.blob();
 
-            if (visibleSheets.length === 0) {
-                alert("Пожалуйста, выберите хотя бы один тип зачета для выгрузки!");
-                return;
-            }
-
-            // Подготовка перед генерацией PDF
-            visibleSheets.forEach((sheet, index) => {
-                sheet.classList.add('pdf-mode'); // Снимаем фиксированную высоту и тени
-                if (index > 0) {
-                    // Жесткий разрыв страницы перед вторым листом!
-                    sheet.classList.add('protocol-page-break');
-                }
-            });
-
-            const opt = {
-                margin: 0, // ИСПРАВЛЕНО: было 15, стало 0
-                filename: 'Протокол_{{ competition.title|slugify }}.pdf',
-                image: {
-                    type: 'jpeg',
-                    quality: 0.98
-                },
-                // ИСПРАВЛЕНО: добавили scrollX: 0, scrollY: 0
-                html2canvas: {
-                    scale: 3,
-                    useCORS: true,
-                    scrollX: 0,
-                    scrollY: 0
-                },
-                jsPDF: {
-                    unit: 'mm',
-                    format: 'a4',
-                    orientation: 'portrait'
-                },
-                pagebreak: {
-                    mode: ['css', 'legacy']
-                }
-            };
-
-            // Генерация и возврат стилей
-            html2pdf().set(opt).from(container).save().then(() => {
-                visibleSheets.forEach((sheet) => {
-                    sheet.classList.remove('pdf-mode');
-                    sheet.classList.remove('protocol-page-break');
+                const fontBase64 = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                    reader.readAsDataURL(fontBlob);
                 });
-            });
+
+                doc.addFileToVFS('Roboto.ttf', fontBase64);
+                doc.addFont('Roboto.ttf', 'Roboto', 'normal');
+                doc.setFont('Roboto');
+
+                // 2. Получение базовых данных
+                const compTitle = document.getElementById('comp-title').innerText;
+                const compDate = document.getElementById('comp-date').innerText;
+                const compStatus = document.getElementById('comp-status').innerText;
+
+                const checkInd = document.getElementById('check-ind').checked;
+                const teamEl = document.getElementById('check-team');
+                const checkTeam = teamEl ? teamEl.checked : false;
+
+                if (!checkInd && !checkTeam) {
+                    alert("Пожалуйста, выберите хотя бы один тип зачета для выгрузки.");
+                    return;
+                }
+
+                // Вспомогательная функция для отрисовки шапки
+                function drawHeader(isTeam) {
+                    doc.setFontSize(16);
+                    doc.text("ОФИЦИАЛЬНЫЙ ПРОТОКОЛ СОРЕВНОВАНИЙ", 105, 20, {
+                        align: "center"
+                    });
+                    doc.setFontSize(14);
+                    doc.text("«" + compTitle + "»", 105, 28, {
+                        align: "center"
+                    });
+                    doc.setFontSize(10);
+                    doc.text("Дата: " + compDate + " | Статус: " + compStatus, 105, 35, {
+                        align: "center"
+                    });
+
+                    doc.setLineWidth(0.5);
+                    doc.line(15, 40, 195, 40);
+
+                    doc.setFontSize(12);
+                    doc.text(isTeam ? "КОМАНДНЫЙ ЗАЧЕТ" : "ЛИЧНЫЙ ЗАЧЕТ", 105, 50, {
+                        align: "center"
+                    });
+                }
+
+                // Вспомогательная функция для нумерации страниц
+                function drawFooter(data) {
+                    const pageCount = doc.internal.getNumberOfPages();
+                    doc.setFontSize(9);
+                    doc.text("Страница " + pageCount, 105, 287, {
+                        align: "center"
+                    });
+                }
+
+                let startY = 55;
+
+                // 3. Рендер личного зачета
+                if (checkInd) {
+                    drawHeader(false);
+                    doc.autoTable({
+                        html: '#table-ind',
+                        startY: startY,
+                        styles: {
+                            font: "Roboto",
+                            fontSize: 10,
+                            halign: 'center',
+                            valign: 'middle',
+                            lineColor: [0, 0, 0],
+                            lineWidth: 0.2
+                        },
+                        headStyles: {
+                            fillColor: [242, 242, 242],
+                            textColor: [0, 0, 0]
+                        },
+                        bodyStyles: {
+                            textColor: [0, 0, 0]
+                        },
+                        columnStyles: {
+                            0: {
+                                cellWidth: 20
+                            },
+                            1: {
+                                cellWidth: 'auto',
+                                halign: 'left'
+                            },
+                            2: {
+                                cellWidth: 30
+                            },
+                            3: {
+                                cellWidth: 30
+                            }
+                        },
+                        margin: {
+                            top: 60,
+                            left: 15,
+                            right: 15,
+                            bottom: 20
+                        },
+                        didDrawPage: drawFooter
+                    });
+
+                    let finalY = doc.lastAutoTable.finalY + 20;
+                    if (finalY > 260) {
+                        doc.addPage();
+                        finalY = 20;
+                    }
+                    doc.text("Главный судья: ______________ / ____________ /", 15, finalY);
+                    doc.text("Организатор: ______________ / ____________ /", 195, finalY, {
+                        align: "right"
+                    });
+                }
+
+                // 4. Рендер командного зачета
+                if (checkTeam) {
+                    if (checkInd) {
+                        doc.addPage();
+                    }
+                    drawHeader(true);
+                    doc.autoTable({
+                        html: '#table-team',
+                        startY: startY,
+                        styles: {
+                            font: "Roboto",
+                            fontSize: 10,
+                            halign: 'center',
+                            valign: 'middle',
+                            lineColor: [0, 0, 0],
+                            lineWidth: 0.2
+                        },
+                        headStyles: {
+                            fillColor: [242, 242, 242],
+                            textColor: [0, 0, 0]
+                        },
+                        bodyStyles: {
+                            textColor: [0, 0, 0]
+                        },
+                        columnStyles: {
+                            0: {
+                                cellWidth: 20
+                            },
+                            1: {
+                                cellWidth: 'auto',
+                                halign: 'left'
+                            },
+                            2: {
+                                cellWidth: 30
+                            },
+                            3: {
+                                cellWidth: 30
+                            }
+                        },
+                        margin: {
+                            top: 60,
+                            left: 15,
+                            right: 15,
+                            bottom: 20
+                        },
+                        didDrawPage: drawFooter
+                    });
+
+                    let finalY = doc.lastAutoTable.finalY + 20;
+                    if (finalY > 260) {
+                        doc.addPage();
+                        finalY = 20;
+                    }
+                    doc.text("Главный судья: ______________ / ____________ /", 15, finalY);
+                    doc.text("Организатор: ______________ / ____________ /", 195, finalY, {
+                        align: "right"
+                    });
+                }
+
+                // 5. Сохранение итогового файла
+                doc.save('Протокол.pdf');
+
+            } catch (error) {
+                console.error(error);
+                alert("Произошла ошибка при генерации PDF.");
+            } finally {
+                btn.innerText = originalText;
+                btn.classList.remove("disabled");
+            }
         }
     </script>
 {% endblock content %}

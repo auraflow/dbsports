@@ -36,7 +36,7 @@
                                 <input type="hidden" name="action" value="delete_all">
                                 <button type="submit"
                                         class="btn btn-sm btn-outline-danger requires-network"
-                                        onclick="return confirm('Вы уверены, что хотите расформировать ВСЕ команды? (Спортсмены при этом останутся в общей базе).');">
+                                        data-vega-confirm="Вы уверены, что хотите расформировать ВСЕ команды? (Спортсмены при этом останутся в общей базе).">
                                     🗑️ Расформировать все
                                 </button>
                             </form>
@@ -65,7 +65,7 @@
                                                         {% csrf_token %}
                                                         <button type="submit"
                                                                 class="btn btn-sm btn-danger requires-network"
-                                                                onclick="return confirm('Удалить команду?');">Удалить</button>
+                                                                data-vega-confirm="Удалить команду?">Удалить</button>
                                                     </form>
                                                 </div>
                                             </td>

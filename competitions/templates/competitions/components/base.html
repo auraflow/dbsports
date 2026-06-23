@@ -12,7 +12,7 @@
         <title>{% block title %}Спортивный Учет{% endblock title %}</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
               rel="stylesheet">
-        <link rel="stylesheet" href="{% static 'css/style.css' %}?v=2.0">
+        <link rel="stylesheet" href="{% static 'css/style.css' %}?v=2.1">
         <script>
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
@@ -35,8 +35,8 @@
              tabindex="-1"
              aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-header border-secondary border-opacity-25">
                         <h5 class="modal-title text-info fw-bold" id="vegaConfirmTitle">Подтверждение действия</h5>
                         <button type="button"
                                 class="btn-close btn-close-white"
@@ -44,7 +44,7 @@
                                 aria-label="Закрыть"></button>
                     </div>
                     <div class="modal-body fs-5 text-white" id="vegaConfirmMessage">Вы уверены?</div>
-                    <div class="modal-footer">
+                    <div class="modal-footer border-secondary border-opacity-25">
                         <button type="button"
                                 class="btn btn-outline-light px-4"
                                 data-bs-dismiss="modal">Отмена</button>
@@ -291,15 +291,17 @@
         {% if messages %}
             <div class="toast-container position-fixed bottom-0 end-0 p-3 toast-high-z">
                 {% for message in messages %}
-                    <div class="toast align-items-center text-bg-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning text-dark{% else %}info{% endif %} border-0 shadow-lg mb-2"
+                    <div class="toast align-items-center text-bg-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning text-dark{% else %}info text-dark{% endif %} border-0 shadow-lg mb-2"
                          role="alert"
                          aria-live="assertive"
                          aria-atomic="true"
                          data-bs-delay="5000">
                         <div class="d-flex">
-                            <div class="toast-body fw-bold">{{ message }}</div>
+                            <div class="toast-body fw-bold text-white {% if message.tags == 'warning' or message.tags == 'info' %}text-dark{% endif %}">
+                                {{ message }}
+                            </div>
                             <button type="button"
-                                    class="btn-close {% if message.tags != 'warning' %}btn-close-white{% endif %} me-2 m-auto requires-network"
+                                    class="btn-close {% if message.tags != 'warning' and message.tags != 'info' %}btn-close-white{% endif %} me-2 m-auto"
                                     data-bs-dismiss="toast"
                                     aria-label="Закрыть"></button>
                         </div>

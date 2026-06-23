@@ -8,7 +8,7 @@
     <div class="card mb-4 border-0 shadow-sm">
         <div class="card-body py-4 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
-                <h2 class="mb-1 text-info fw-bold">Ввод результатов</h2>
+                <h2 class="mb-2 text-info fw-bold">Ввод результатов</h2>
                 <p class="text-muted mb-0 fs-5">
                     Этап: <strong class="text-white" id="stage-name-display">{{ stage.name }}</strong> |
                     Ед. измерения: <strong class="text-white">{{ stage.type.measure_unit }}</strong>
@@ -17,14 +17,15 @@
         </div>
     </div>
     <div id="offline-sync-banner"
-         class="alert alert-warning d-none shadow-sm border-0 mb-4"
+         class="card border-warning border-opacity-50 mb-4 d-none shadow-sm"
          role="alert">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span>
-                <strong>Автономный режим:</strong> Найдено <span id="local-records-count" class="fw-bold">0</span> результатов, сохраненных локально. Они будут отправлены в базу автоматически при восстановлении интернета.
+        <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3 bg-warning bg-opacity-10 rounded">
+            <span class="text-warning">
+                <strong class="fw-bold">Автономный режим:</strong> Найдено <span id="local-records-count" class="fw-bold fs-5 text-white">0</span> результатов, сохраненных локально. Они будут отправлены в базу автоматически при восстановлении сети.
             </span>
             <div>
-                <button id="export-backup-btn" class="btn btn-sm btn-dark me-2">Скачать бэкап</button>
+                <button id="export-backup-btn"
+                        class="btn btn-sm btn-outline-warning fw-bold px-3">Скачать бэкап</button>
             </div>
         </div>
     </div>
@@ -32,11 +33,11 @@
         <div class="col-md-4 no-print">
             <div class="card border-0 shadow-sm sticky-md-top">
                 <div class="card-body px-4 py-4">
-                    <h5 class="card-title text-info fw-bold mb-4">Новая запись</h5>
+                    <h5 class="card-title text-info fw-bold mb-4 text-uppercase fs-6">Новая запись</h5>
                     <form id="result-form" method="post" class="form-vega-wrapper">
                         {% csrf_token %}
                         <div class="mb-3">
-                            <label for="id_participant" class="form-label">Участник</label>
+                            <label for="id_participant" class="form-label text-muted fw-bold">Участник</label>
                             <select name="participant" class="form-select" id="id_participant" required>
                                 <option value="" selected disabled>-- Выберите спортсмена --</option>
                                 {% for p in participants %}
@@ -45,7 +46,7 @@
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label for="id_value" class="form-label">Результат ({{ stage.type.measure_unit }})</label>
+                            <label for="id_value" class="form-label text-muted fw-bold">Результат ({{ stage.type.measure_unit }})</label>
                             <input type="number"
                                    step="0.001"
                                    name="value"
@@ -54,7 +55,7 @@
                                    required>
                         </div>
                         <div class="mb-3">
-                            <label for="id_penalty_value" class="form-label">Штраф (при наличии)</label>
+                            <label for="id_penalty_value" class="form-label text-muted fw-bold">Штраф (при наличии)</label>
                             <input type="number"
                                    step="0.001"
                                    name="penalty_value"
@@ -63,53 +64,59 @@
                                    value="0.000">
                         </div>
                         <div class="mb-4">
-                            <label for="id_comment" class="form-label">Примечание</label>
+                            <label for="id_comment" class="form-label text-muted fw-bold">Примечание</label>
                             <textarea name="comment" class="form-control" id="id_comment" rows="2"></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">Сохранить результат</button>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm py-2">Сохранить результат</button>
                     </form>
                 </div>
             </div>
         </div>
         <div class="col-md-8">
             <div class="card border-0 shadow-sm">
-                <div class="card-body px-4 py-4">
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                        <h5 class="card-title text-white fw-bold mb-0">Протокол ввода</h5>
+                <div class="card-body px-0 py-0">
+                    <div class="px-4 py-4 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title text-white fw-bold mb-0 text-uppercase fs-6">Протокол ввода</h5>
                     </div>
-                    <div class="table-responsive">
+                    <div class="table-responsive px-2 pb-2">
                         <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th>Спортсмен</th>
-                                    <th>Результат</th>
-                                    <th>Штраф</th>
-                                    <th>Примечание</th>
-                                    <th>Статус</th>
+                                    <th class="ps-3 py-3">Спортсмен</th>
+                                    <th class="py-3">Результат</th>
+                                    <th class="py-3">Штраф</th>
+                                    <th class="py-3">Примечание</th>
+                                    <th class="pe-3 py-3">Статус</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for r in results %}
                                     <tr>
-                                        <td><span class="text-white">{{ r.participant.full_name }}</span> <span class="text-muted">(№{{ r.participant.bib_number }})</span></td>
-                                        <td class="fw-bold text-info">{{ r.value }}</td>
-                                        <td>{{ r.penalty_value|default:"0" }}</td>
+                                        <td class="ps-3">
+                                            <span class="text-white fw-bold">{{ r.participant.full_name }}</span>
+                                            <span class="text-muted ms-1 small">№{{ r.participant.bib_number }}</span>
+                                        </td>
+                                        <td class="fw-bold text-info fs-5">{{ r.value }}</td>
+                                        <td class="text-danger fw-bold">{{ r.penalty_value|default:"0.000" }}</td>
                                         <td class="text-muted small">{{ r.comment|default:"—" }}</td>
-                                        <td>
+                                        <td class="pe-3">
                                             <div class="d-flex align-items-center gap-2">
                                                 {% if r.is_verified %}
-                                                    <span class="badge bg-success">Проверен</span>
+                                                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1">Проверен</span>
                                                 {% else %}
-                                                    <span class="badge bg-warning text-dark">Не проверен</span>
+                                                    <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-50 px-2 py-1">Ожидает</span>
                                                     <a href="{% url 'edit_result' r.id %}"
-                                                       class="btn btn-sm btn-outline-warning py-0 requires-network">Изменить</a>
+                                                       class="btn btn-sm btn-outline-warning py-0 px-2 requires-network">Изменить</a>
                                                 {% endif %}
                                             </div>
                                         </td>
                                     </tr>
                                 {% empty %}
                                     <tr id="empty-table-row">
-                                        <td colspan="5" class="text-center text-muted py-5">Пока нет введенных результатов.</td>
+                                        <td colspan="5" class="text-center text-muted py-5">
+                                            <div class="fs-5 mb-2">Нет данных</div>
+                                            <p class="m-0 small">Ожидание ввода первых результатов этапа</p>
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -121,12 +128,14 @@
     </div>
     <template id="new-row-template">
         <tr>
-            <td class="js-name text-white"></td>
-            <td class="fw-bold text-info js-val"></td>
-            <td class="js-pen"></td>
+            <td class="ps-3">
+                <span class="js-name text-white fw-bold"></span>
+            </td>
+            <td class="fw-bold text-info fs-5 js-val"></td>
+            <td class="text-danger fw-bold js-pen"></td>
             <td class="js-comm text-muted small"></td>
-            <td>
-                <span class="badge bg-warning text-dark">Не проверен</span>
+            <td class="pe-3">
+                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-50 px-2 py-1 offline-badge">Ожидает</span>
             </td>
         </tr>
     </template>
@@ -168,10 +177,10 @@
                     rowElement.classList.add("offline-row", "offline-row-border");
                     rowElement.title = "Ожидает синхронизации с сервером";
                 }
-                const badge = clone.querySelector(".badge");
+                const badge = clone.querySelector(".offline-badge");
                 if (badge) {
                     badge.textContent = "В очереди";
-                    badge.className = "badge bg-secondary text-light offline-badge";
+                    badge.className = "badge bg-secondary bg-opacity-25 text-light border border-secondary border-opacity-50 px-2 py-1 offline-badge";
                 }
             }
 
@@ -332,7 +341,7 @@
                     const badge = row.querySelector(".offline-badge");
                     if (badge) {
                         badge.textContent = "Отправлен";
-                        badge.className = "badge bg-success text-light";
+                        badge.className = "badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1";
                     }
                 });
                 renderOfflineBanner();

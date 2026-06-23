@@ -1,25 +1,24 @@
 <nav class="navbar border-bottom py-3 mb-4 shadow-sm">
-    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
         <a href="{% url 'dashboard' %}"
-           class="navbar-brand text-info fw-bold m-0 text-decoration-none fs-4">Вега</a>
-        <div class="d-flex align-items-center gap-2 ms-auto ms-md-0">
-            <div id="global-network-status" class="badge bg-success shadow-sm p-2">Онлайн</div>
-            <button id="manual-cache-btn"
-                    class="btn btn-sm btn-outline-light requires-network"
-                    title="Скачать базу">Скачать актуальные данные</button>
-        </div>
-        {% if request.user.is_authenticated %}
-            <ul class="nav d-flex align-items-center justify-content-end gap-3 m-0 p-0 w-100 w-md-auto mt-2 mt-md-0">
-                <li class="nav-item">
-                    <span class="text-info fw-bold">{{ request.user.username }}</span>
-                </li>
-                <li class="nav-item">
-                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+           class="custom-label-vega navbar-brand text-info fw-bold m-0 text-decoration-none fs-2">Вега</a>
+        <div class="d-flex align-items-center flex-wrap justify-content-end gap-3 ms-auto">
+            <div class="d-flex align-items-center gap-2 nav-island shadow-sm">
+                <div id="global-network-status"
+                     class="badge bg-success shadow-sm px-3 py-2 fs-6">Онлайн</div>
+                <button id="manual-cache-btn"
+                        class="btn btn-outline-light requires-network fw-bold"
+                        title="Скачать базу">Обновить базу</button>
+            </div>
+            {% if request.user.is_authenticated %}
+                <div class="d-flex align-items-center gap-3 nav-island shadow-sm">
+                    <span class="text-info fw-bold fs-5 px-2">{{ request.user.username }}</span>
+                    <form action="{% url 'logout' %}" method="post" class="m-0">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-danger fw-bold">Выход</button>
+                        <button type="submit" class="btn btn-danger fw-bold shadow-sm">Выход</button>
                     </form>
-                </li>
-            </ul>
-        {% endif %}
+                </div>
+            {% endif %}
+        </div>
     </div>
 </nav>
