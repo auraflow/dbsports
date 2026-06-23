@@ -3,17 +3,20 @@
 {% block content %}
     <div class="mb-3 no-print">
         <a href="{% url 'organizer_competitions' %}"
-           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+           class="btn btn-sm btn-outline-light smart-back px-3">Назад</a>
     </div>
-    <div class="card mb-4">
-        <div class="card-body py-4">
-            <h2 class="mb-2 text-warning">➕ Создание соревнования</h2>
-            <p class="text-muted mb-4">Заполните основные данные о новом турнире. Поля со звездочкой обязательно для заполнения.</p>
-            <form method="post">
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body py-4 px-4">
+            <h2 class="mb-3 text-info fw-bold">Создание соревнования</h2>
+            <p class="text-muted mb-4 fs-5">Заполните основные данные о новом турнире. Поля со звездочкой обязательны для заполнения.</p>
+            <form method="post" class="mt-2">
                 {% csrf_token %}
-                <div class="mb-4">{{ form.as_p }}</div>
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger py-2 small fw-bold border-0 rounded-3 mb-4">{{ form.non_field_errors.0 }}</div>
+                {% endif %}
+                <div class="mb-4 form-vega-wrapper">{{ form.as_p }}</div>
                 <hr class="mb-4">
-                <button type="submit" class="btn btn-outline-success px-4">Сохранить соревнование</button>
+                <button type="submit" class="btn btn-info btn-lg px-4 shadow-sm">Сохранить соревнование</button>
             </form>
         </div>
     </div>

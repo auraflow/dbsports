@@ -3,35 +3,48 @@
 {% block content %}
     <div class="mb-3 no-print">
         <a href="{% url 'competition_panel' competition.id %}"
-           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+           class="btn btn-sm btn-outline-light smart-back px-3">Назад</a>
     </div>
-    <div class="card mb-4">
-        <div class="card-body py-4">
-            <h2 class="mb-1 text-warning">Управление участниками</h2>
-            <p class="text-muted mb-0">Турнир: <strong class="text-light">{{ competition.title }}</strong></p>
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body py-4 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h2 class="mb-1 text-info fw-bold">Управление участниками</h2>
+                <p class="text-muted mb-0 fs-5">Турнир: <strong class="text-white">{{ competition.title }}</strong></p>
+            </div>
+            {% if participants %}
+                <form method="post" class="m-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_all">
+                    <button type="submit"
+                            class="btn btn-outline-danger shadow-sm requires-network"
+                            data-vega-confirm="КРИТИЧЕСКОЕ ДЕЙСТВИЕ: Вы уверены, что хотите удалить ВСЕХ участников этого турнира из базы?">
+                        Удалить всех
+                    </button>
+                </form>
+            {% endif %}
         </div>
     </div>
-    <div class="row">
+    <div class="row g-4">
         <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h4 class="mb-3">Регистрация</h4>
-                    <form method="post">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body px-4 py-4">
+                    <h4 class="mb-4 text-white fw-bold">Регистрация</h4>
+                    <form method="post" class="form-vega-wrapper">
                         {% csrf_token %}
                         {{ form.as_p }}
                         <button type="submit"
-                                class="btn btn-outline-success w-100 mt-2 requires-network">Зарегистрировать</button>
+                                class="btn btn-info w-100 mt-2 fw-bold shadow-sm requires-network">Зарегистрировать</button>
                     </form>
                 </div>
             </div>
         </div>
         <div class="col-md-8 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h4 class="mb-3">База спортсменов</h4>
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body px-4 py-4">
+                    <h4 class="mb-4 text-white fw-bold">База спортсменов</h4>
                     {% if participants %}
                         <div class="table-responsive">
-                            <table class="table align-middle m-0">
+                            <table class="table table-hover align-middle m-0">
                                 <thead>
                                     <tr>
                                         <th>№</th>
@@ -42,19 +55,19 @@
                                 <tbody>
                                     {% for part in participants %}
                                         <tr>
-                                            <td class="text-warning fw-bold">{{ part.bib_number|default:"-" }}</td>
-                                            <td class="fw-bold">{{ part.full_name }}</td>
+                                            <td class="text-info fw-bold">{{ part.bib_number|default:"-" }}</td>
+                                            <td class="fw-bold text-white">{{ part.full_name }}</td>
                                             <td class="text-end">
                                                 <div class="d-flex justify-content-end gap-2">
                                                     <a href="{% url 'edit_participant' part.id %}"
-                                                       class="btn btn-sm btn-outline-warning requires-network">Изменить</a>
+                                                       class="btn btn-sm btn-outline-light requires-network">Изменить</a>
                                                     <form action="{% url 'delete_participant' part.id %}"
                                                           method="post"
                                                           class="m-0">
                                                         {% csrf_token %}
                                                         <button type="submit"
-                                                                class="btn btn-sm btn-danger requires-network"
-                                                                onclick="return confirm('Отменить регистрацию участника?');">Удалить</button>
+                                                                class="btn btn-sm btn-outline-danger requires-network"
+                                                                data-vega-confirm="Отменить регистрацию участника {{ part.full_name }}?">Удалить</button>
                                                     </form>
                                                 </div>
                                             </td>
@@ -64,7 +77,7 @@
                             </table>
                         </div>
                     {% else %}
-                        <p class="text-muted m-0">Пока никто не зарегистрирован.</p>
+                        <p class="text-muted m-0 fs-5 text-center py-5">Пока никто не зарегистрирован.</p>
                     {% endif %}
                 </div>
             </div>

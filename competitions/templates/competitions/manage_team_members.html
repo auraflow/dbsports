@@ -28,7 +28,20 @@
         <div class="col-md-8 mb-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <h4 class="mb-3">Спортсмены в команде</h4>
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h4 class="m-0">Спортсмены в команде</h4>
+                        {% if members %}
+                            <form method="post" class="m-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_all">
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-danger requires-network"
+                                        onclick="return confirm('Вы уверены, что хотите исключить ВСЕХ участников из этой команды?');">
+                                    🗑️ Очистить состав
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
                     {% if members %}
                         <div class="table-responsive">
                             <table class="table table-borderless align-middle m-0">

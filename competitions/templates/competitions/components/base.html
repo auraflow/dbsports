@@ -12,7 +12,7 @@
         <title>{% block title %}Спортивный Учет{% endblock title %}</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
               rel="stylesheet">
-        <link rel="stylesheet" href="{% static "css/style.css" %}">
+        <link rel="stylesheet" href="{% static 'css/style.css' %}?v=2.0">
         <script>
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
@@ -23,70 +23,73 @@
             }
         </script>
     </head>
-    <body class="{% block body_class %}gruvbox-theme{% endblock body_class %}">
+    <body class="{% block body_class %}vega-theme{% endblock body_class %}">
         {% include "competitions/components/navbar.html" %}
         <main class="container mt-4 mb-4">
-            {% if messages %}
-                <div class="messages-container mb-4 no-print">
-                    {% for message in messages %}
-                        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show shadow-sm border-0"
-                             role="alert">
-                            <strong>Системное уведомление:</strong> {{ message }}
-                            <button type="button"
-                                    class="btn-close"
-                                    data-bs-dismiss="alert"
-                                    aria-label="Закрыть"></button>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
             {% block content %}
             {% endblock content %}
         </main>
         {% include "competitions/components/footer.html" %}
+        <div class="modal fade"
+             id="vegaConfirmModal"
+             tabindex="-1"
+             aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-info fw-bold" id="vegaConfirmTitle">Подтверждение действия</h5>
+                        <button type="button"
+                                class="btn-close btn-close-white"
+                                data-bs-dismiss="modal"
+                                aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body fs-5 text-white" id="vegaConfirmMessage">Вы уверены?</div>
+                    <div class="modal-footer">
+                        <button type="button"
+                                class="btn btn-outline-light px-4"
+                                data-bs-dismiss="modal">Отмена</button>
+                        <button type="button"
+                                class="btn btn-danger px-4 shadow-sm"
+                                id="vegaConfirmBtn">Подтвердить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
         <script>
             document.addEventListener("DOMContentLoaded", function() {
                 const globalNetBadge = document.getElementById('global-network-status');
-                // Добавляем переменную для памяти перед функцией
                 let isCurrentlyOffline = !navigator.onLine;
 
-                // 1. ВЫНОСИМ ТВОЮ ЛОГИКУ UI В ОТДЕЛЬНУЮ ФУНКЦИЮ
                 function applyNetworkState(isOffline) {
-                    // Обновляем бейдж в шапке
                     if (globalNetBadge) {
                         if (isOffline) {
-                            globalNetBadge.className = "badge bg-danger ms-md-3 d-none d-md-block shadow-sm";
-                            globalNetBadge.innerText = "🔴 Автономно (Офлайн)";
+                            globalNetBadge.className = "badge bg-danger shadow-sm p-2";
+                            globalNetBadge.innerText = "Офлайн";
                         } else {
-                            globalNetBadge.className = "badge bg-success ms-md-3 d-none d-md-block shadow-sm";
-                            globalNetBadge.innerText = "🟢 Онлайн";
+                            globalNetBadge.className = "badge bg-success shadow-sm p-2";
+                            globalNetBadge.innerText = "Онлайн";
                         }
                     }
 
-                    // УМНАЯ БЛОКИРОВКА UI ПРИ ПОТЕРЕ СЕТИ
-                    // Блокируем любые элементы со специальным классом-маркером 'requires-network'
                     const actionElements = document.querySelectorAll('.requires-network');
                     actionElements.forEach(el => {
                         if (isOffline) {
-                            el.classList.add('disabled');
-                            el.style.pointerEvents = 'none';
-                            // Сохраняем оригинальный HTML только один раз
+                            el.classList.add('disabled', 'pointer-disabled');
+                            el.classList.remove('pointer-auto');
                             if (!el.dataset.oldHtml) el.dataset.oldHtml = el.innerHTML;
-                            el.innerHTML = "🔒 Офлайн";
+                            el.innerHTML = "Офлайн";
                             if (el.tagName === 'BUTTON') el.disabled = true;
                         } else {
-                            el.classList.remove('disabled');
-                            el.style.pointerEvents = 'auto';
+                            el.classList.remove('disabled', 'pointer-disabled');
+                            el.classList.add('pointer-auto');
                             if (el.dataset.oldHtml) el.innerHTML = el.dataset.oldHtml;
                             if (el.tagName === 'BUTTON') el.disabled = false;
                         }
                     });
 
-                    // Блокируем все формы POST, ИСКЛЮЧАЯ умную форму ввода
                     const postForms = document.querySelectorAll('form[method="post"]:not(#result-form)');
                     postForms.forEach(form => {
-                        // Оставляем твой функционал устаревания кэша
                         form.addEventListener('submit', function() {
                             sessionStorage.setItem('cache_outdated', 'true');
                         });
@@ -96,7 +99,7 @@
                             if (isOffline) {
                                 btn.disabled = true;
                                 if (!btn.dataset.oldHtml) btn.dataset.oldHtml = btn.innerHTML;
-                                btn.innerHTML = "🔒 Офлайн";
+                                btn.innerHTML = "Офлайн";
                                 btn.title = "Действие требует подключения к серверу";
                             } else {
                                 btn.disabled = false;
@@ -105,54 +108,40 @@
                             }
                         });
                     });
-                    // --- НОВАЯ МАГИЯ: ГЛОБАЛЬНОЕ СОБЫТИЕ ---
-                    // Если мы БЫЛИ в офлайне, а теперь СТАЛИ онлайн (сервер ожил)
+
                     if (isCurrentlyOffline && !isOffline) {
                         console.log("Пульс сервера восстановлен! Запускаем глобальную синхронизацию...");
                         window.dispatchEvent(new CustomEvent('server-back-online'));
                     }
-                    // Запоминаем текущий статус для следующей проверки
                     isCurrentlyOffline = isOffline;
                 }
 
-                // 2. АСИНХРОННАЯ ПРОВЕРКА ПУЛЬСА СЕРВЕРА (HEARTBEAT)
                 async function checkServerHealth() {
-                    // Сначала базовая проверка роутера
                     if (!navigator.onLine) {
                         applyNetworkState(true);
                         return;
                     }
-
                     try {
-                        // Кидаем легкий HEAD-запрос в корень сайта в обход кэша
                         const response = await fetch('/ping/', {
                             method: 'GET',
                             cache: 'no-store'
                         });
-
                         if (response.ok) {
-                            applyNetworkState(false); // Сервер жив
+                            applyNetworkState(false);
                         } else {
-                            applyNetworkState(true); // Сервер ответил ошибкой (например 502 Bad Gateway)
+                            applyNetworkState(true);
                         }
                     } catch (error) {
-                        applyNetworkState(true); // Сервер физически мертв (Ctrl+C)
+                        applyNetworkState(true);
                     }
                 }
 
-                // 3. ЗАПУСК И СЛУШАТЕЛИ
-                // Слушаем физическое включение/отключение Wi-Fi
                 window.addEventListener('online', checkServerHealth);
                 window.addEventListener('offline', () => applyNetworkState(true));
 
-                // Проверяем статус при загрузке страницы
                 checkServerHealth();
-
-                // Проверяем пульс каждые 10 секунд
                 setInterval(checkServerHealth, 10000);
 
-
-                // Логика умной кнопки "Назад" (без изменений)
                 const backButtons = document.querySelectorAll(".smart-back");
                 backButtons.forEach(btn => {
                     btn.addEventListener("click", function(e) {
@@ -162,6 +151,42 @@
                         }
                     });
                 });
+
+                // --- ЛОГИКА ГЛОБАЛЬНОГО МОДАЛЬНОГО ОКНА ПОДТВЕРЖДЕНИЯ ---
+                let formToSubmit = null;
+                const confirmModalEl = document.getElementById('vegaConfirmModal');
+                if (confirmModalEl) {
+                    const confirmModal = new bootstrap.Modal(confirmModalEl);
+                    const confirmMessageEl = document.getElementById('vegaConfirmMessage');
+                    const confirmBtn = document.getElementById('vegaConfirmBtn');
+
+                    document.querySelectorAll('[data-vega-confirm]').forEach(button => {
+                        button.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            formToSubmit = this.closest('form');
+
+                            confirmMessageEl.textContent = this.getAttribute('data-vega-confirm');
+
+                            if (this.classList.contains('btn-danger') || this.classList.contains('btn-outline-danger')) {
+                                confirmBtn.className = 'btn btn-danger px-4 shadow-sm';
+                                confirmBtn.textContent = 'Да, удалить';
+                            } else {
+                                confirmBtn.className = 'btn btn-info text-dark fw-bold px-4 shadow-sm';
+                                confirmBtn.textContent = 'Выполнить';
+                            }
+
+                            confirmModal.show();
+                        });
+                    });
+
+                    confirmBtn.addEventListener('click', function() {
+                        if (formToSubmit) {
+                            sessionStorage.setItem('cache_outdated', 'true');
+                            formToSubmit.submit();
+                        }
+                        confirmModal.hide();
+                    });
+                }
             });
         </script>
         <script>
@@ -169,13 +194,10 @@
                 const cacheBtn = document.getElementById('manual-cache-btn');
 
                 if (cacheBtn && 'serviceWorker' in navigator) {
-
-                    // --- НОВОЕ: Умная проверка флага устаревания базы ---
                     if (sessionStorage.getItem('cache_outdated') === 'true') {
                         cacheBtn.classList.remove('btn-outline-light');
-                        // Делаем кнопку желтой и пульсирующей (с помощью стандартных классов Bootstrap)
                         cacheBtn.classList.add('btn-warning', 'text-dark', 'fw-bold', 'shadow-lg');
-                        cacheBtn.innerHTML = '⚠️ Обновить базу';
+                        cacheBtn.innerHTML = 'Обновить базу';
                         cacheBtn.title = "Данные были изменены! Нажмите, чтобы обновить вашу офлайн-копию.";
                     }
 
@@ -185,11 +207,9 @@
                             return;
                         }
 
-                        cacheBtn.innerHTML = "⏳ Качаем...";
-                        cacheBtn.classList.add('disabled');
-                        cacheBtn.style.pointerEvents = 'none';
-
-                        console.log("[Prefetcher] Запрашиваем манифест системы у сервера...");
+                        cacheBtn.innerHTML = "Загрузка...";
+                        cacheBtn.classList.add('disabled', 'pointer-disabled');
+                        cacheBtn.classList.remove('pointer-auto');
 
                         fetch('/offline-manifest/', {
                                 cache: 'no-store'
@@ -201,33 +221,21 @@
                             .then(data => {
                                 const urls = data.urls;
                                 if (!urls || urls.length === 0) {
-                                    cacheBtn.innerHTML = "❌ Нет данных";
-                                    setTimeout(() => {
-                                        restoreBtn();
-                                    }, 3000);
+                                    cacheBtn.innerHTML = "Нет данных";
+                                    setTimeout(() => restoreBtn(), 3000);
                                     return;
                                 }
-
-                                console.log(`[Prefetcher] Найдено ${urls.length} страниц. Начинаю загрузку...`);
 
                                 let i = 0;
 
                                 function fetchNext() {
                                     if (i >= urls.length) {
-                                        console.log('[Prefetcher] ✅ Вся система успешно сохранена для офлайн-доступа!');
-
-                                        // --- НОВОЕ: Снимаем тревогу после успешного скачивания ---
                                         sessionStorage.removeItem('cache_outdated');
-
                                         showOfflineReadyToast();
-                                        cacheBtn.innerHTML = "✅ Готово";
-                                        // Убираем все возможные классы и ставим зеленый статус
+                                        cacheBtn.innerHTML = "Готово";
                                         cacheBtn.classList.remove('btn-outline-light', 'btn-warning', 'text-dark', 'fw-bold', 'shadow-lg');
                                         cacheBtn.classList.add('btn-success', 'text-white');
-
-                                        setTimeout(() => {
-                                            restoreBtn();
-                                        }, 5000);
+                                        setTimeout(() => restoreBtn(), 5000);
                                         return;
                                     }
 
@@ -247,22 +255,17 @@
                                             fetchNext();
                                         });
                                 }
-
                                 fetchNext();
                             })
                             .catch(err => {
-                                console.error("[Prefetcher] Ошибка скачивания:", err);
-                                cacheBtn.innerHTML = "❌ Ошибка";
-                                setTimeout(() => {
-                                    restoreBtn();
-                                }, 3000);
+                                cacheBtn.innerHTML = "Ошибка";
+                                setTimeout(() => restoreBtn(), 3000);
                             });
 
                         function restoreBtn() {
-                            cacheBtn.innerHTML = "☁️ Скачать базу";
-                            cacheBtn.classList.remove('disabled', 'btn-success', 'btn-warning', 'text-dark', 'fw-bold', 'shadow-lg');
-                            cacheBtn.classList.add('btn-outline-light', 'text-white');
-                            cacheBtn.style.pointerEvents = 'auto';
+                            cacheBtn.innerHTML = "Скачать базу";
+                            cacheBtn.classList.remove('disabled', 'btn-success', 'btn-warning', 'text-dark', 'fw-bold', 'shadow-lg', 'pointer-disabled');
+                            cacheBtn.classList.add('btn-outline-light', 'text-white', 'pointer-auto');
                         }
                     });
                 }
@@ -270,10 +273,10 @@
 
             function showOfflineReadyToast() {
                 const toastHtml = `
-                    <div id="prefetch-toast" class="toast align-items-center text-bg-success border-0 position-fixed bottom-0 end-0 m-3 shadow-lg" role="alert" style="z-index: 1050;" data-bs-delay="4000">
+                    <div id="prefetch-toast" class="toast align-items-center text-bg-success border-0 position-fixed bottom-0 end-0 m-3 shadow-lg toast-high-z" role="alert" data-bs-delay="4000">
                       <div class="d-flex">
                         <div class="toast-body fw-bold">
-                          ☁️ База обновлена. Полный офлайн доступ включен.
+                          База обновлена. Полный офлайн доступ включен.
                         </div>
                         <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
                       </div>
@@ -285,5 +288,33 @@
                 toast.show();
             }
         </script>
+        {% if messages %}
+            <div class="toast-container position-fixed bottom-0 end-0 p-3 toast-high-z">
+                {% for message in messages %}
+                    <div class="toast align-items-center text-bg-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning text-dark{% else %}info{% endif %} border-0 shadow-lg mb-2"
+                         role="alert"
+                         aria-live="assertive"
+                         aria-atomic="true"
+                         data-bs-delay="5000">
+                        <div class="d-flex">
+                            <div class="toast-body fw-bold">{{ message }}</div>
+                            <button type="button"
+                                    class="btn-close {% if message.tags != 'warning' %}btn-close-white{% endif %} me-2 m-auto requires-network"
+                                    data-bs-dismiss="toast"
+                                    aria-label="Закрыть"></button>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    var toastElList = [].slice.call(document.querySelectorAll('.toast'));
+                    var toastList = toastElList.map(function(toastEl) {
+                        return new bootstrap.Toast(toastEl);
+                    });
+                    toastList.forEach(toast => toast.show());
+                });
+            </script>
+        {% endif %}
     </body>
 </html>

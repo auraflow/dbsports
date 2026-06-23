@@ -1,25 +1,29 @@
 {% extends "competitions/components/base.html" %}
-{% block title %}Главная панель | АСУ Соревнований{% endblock title %}
+{% block title %}Главная панель | Вега{% endblock title %}
 {% block content %}
-    <div class="card mb-4">
-        <div class="card-body text-center py-5">
-            <h1 class="mb-3">Добро пожаловать, {{ request.user.full_name|default:request.user.username }}!</h1>
-            <p class="text-muted mb-0">
-                Ваша роль в системе: <strong class="text-success">{{ request.user.role.role_name|default:"Роль не назначена" }}</strong>
+    <div class="card mb-4 border-0 dashboard-welcome-card">
+        <div class="card-body text-center py-5 px-4">
+            <h1 class="mb-3 fw-bold dashboard-title text-primary">
+                Добро пожаловать, <span class="text-white">{{ request.user.full_name|default:request.user.username }}</span>!
+            </h1>
+            <p class="text-muted mb-0 fs-5">
+                Ваша роль в системе: <strong class="text-info">{{ request.user.role.role_name|default:"Роль не назначена" }}</strong>
             </p>
         </div>
     </div>
-    <div class="card">
-        <div class="card-body text-center py-5">
-            <h2 class="mb-4">Доступные действия</h2>
+    <div class="card border-0">
+        <div class="card-body text-center py-5 px-4">
+            <h2 class="mb-4 fw-bold text-primary">Доступные действия</h2>
             <div class="d-flex justify-content-center flex-wrap gap-3">
-                <a href="{% url 'stage_list' %}" class="btn btn-outline-light">⏱️ Ввод результатов (Судьи)</a>
+                <a href="{% url 'stage_list' %}"
+                   class="btn btn-info btn-lg px-4 shadow-sm">Ввод результатов (Судьи)</a>
                 {% if request.user.role.role_name == "Организатор" or request.user.is_superuser %}
                     <a href="{% url 'organizer_competitions' %}"
-                       class="btn btn-outline-light">🏆 Управление соревнованиями</a>
+                       class="btn btn-primary btn-lg px-4 shadow-sm">Управление соревнованиями</a>
                 {% endif %}
                 {% if request.user.role.role_name in "Организатор,Главный судья" or request.user.is_superuser %}
-                    <a href="{% url 'chief_stage_list' %}" class="btn btn-outline-light">⚖️ Верификация результатов</a>
+                    <a href="{% url 'chief_stage_list' %}"
+                       class="btn btn-outline-light btn-lg px-4">Верификация результатов</a>
                 {% endif %}
             </div>
         </div>

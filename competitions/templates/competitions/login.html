@@ -1,14 +1,26 @@
 {% extends "competitions/components/base.html" %}
-{% block title %}Вход в систему{% endblock title %}
+{% block title %}Вход | Вега{% endblock title %}
 {% block content %}
     <div class="d-flex justify-content-center align-items-center login-wrapper">
-        <div class="card login-card w-100">
-            <div class="card-body py-5 px-4 text-center">
-                <h2 class="mb-4 text-warning">Вход в систему</h2>
-                <form method="post" class="text-start">
+        <div class="card login-card w-100 shadow-lg border-0">
+            <div class="card-body py-5 px-4 px-md-5 text-center">
+                <form method="post" class="text-start mt-4">
                     {% csrf_token %}
-                    <div class="mb-4">{{ form.as_p }}</div>
-                    <button type="submit" class="btn btn-outline-success w-100 py-2">Войти</button>
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small fw-bold text-center border-0 rounded-3">{{ form.non_field_errors.0 }}</div>
+                    {% endif %}
+                    {% for field in form %}
+                        <div class="mb-4">
+                            <label class="form-label text-muted small fw-bold mb-2 ps-1">{{ field.label }}</label>
+                            <input type="{{ field.field.widget.input_type }}"
+                                   name="{{ field.name }}"
+                                   class="form-control form-control-lg bg-dark text-light shadow-sm"
+                                   placeholder="Введите {{ field.label|lower }}"
+                                   required>
+                        </div>
+                    {% endfor %}
+                    <button type="submit"
+                            class="btn btn-info btn-lg w-100 mt-2 fw-bold text-dark shadow-sm">Войти в систему</button>
                 </form>
             </div>
         </div>

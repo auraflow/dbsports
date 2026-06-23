@@ -3,30 +3,30 @@
 {% block content %}
     <div class="mb-3 no-print">
         <a href="{% url 'dashboard' %}"
-           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+           class="btn btn-sm btn-outline-light smart-back">Назад</a>
     </div>
-    <div class="card mb-4 border-warning">
-        <div class="card-body py-4">
-            <h2 class="mb-2 text-warning">⚖️ Верификация результатов</h2>
-            <p class="text-muted m-0">Выберите этап для проверки и утверждения результатов, введенных судьями.</p>
+    <div class="card mb-4 border-0">
+        <div class="card-body py-4 px-4">
+            <h2 class="mb-2 text-info fw-bold">Верификация результатов</h2>
+            <p class="text-muted m-0 fs-5">Выберите этап для проверки и утверждения результатов, введенных судьями.</p>
         </div>
     </div>
     {% if stages %}
         {% regroup stages by competition as grouped_stages %}
         {% for group in grouped_stages %}
-            <div class="card mb-4 border-secondary shadow-sm">
-                <div class="card-header border-secondary py-3">
-                    <h4 class="text-warning m-0">🏆 {{ group.grouper.title }}</h4>
+            <div class="card mb-4 border-0 shadow-sm">
+                <div class="card-header py-3 px-4">
+                    <h4 class="text-white m-0 fw-bold">{{ group.grouper.title }}</h4>
                 </div>
                 <div class="list-group list-group-flush">
                     {% for stage in group.list %}
-                        <div class="list-group-item bg-transparent border-secondary py-3 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                        <div class="list-group-item bg-transparent py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
                             <div>
-                                <h5 class="text-light mb-0">{{ stage.name }}</h5>
+                                <h5 class="text-white mb-0 fw-bold">{{ stage.name }}</h5>
                             </div>
                             <div class="d-flex gap-2">
                                 <a href="{% url 'stage_verify_panel' stage.id %}"
-                                   class="btn btn-sm btn-outline-warning">Проверить результаты</a>
+                                   class="btn btn-sm btn-info px-3">Проверить результаты</a>
                             </div>
                         </div>
                     {% endfor %}
@@ -34,9 +34,9 @@
             </div>
         {% endfor %}
     {% else %}
-        <div class="card">
-            <div class="card-body py-4 text-center">
-                <p class="text-muted m-0">Нет активных этапов для проверки.</p>
+        <div class="card border-0">
+            <div class="card-body py-5 text-center">
+                <p class="text-muted m-0 fs-5">Нет активных этапов для проверки.</p>
             </div>
         </div>
     {% endif %}

@@ -3,15 +3,15 @@
 {% block content %}
     <div class="mb-3 no-print">
         <a href="{% url 'stage_list' %}"
-           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+           class="btn btn-sm btn-outline-light smart-back px-3">Назад</a>
     </div>
-    <div class="card mb-4">
-        <div class="card-body py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body py-4 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
-                <h2 class="mb-1 text-warning">⏱️ Ввод результатов</h2>
-                <p class="text-muted mb-0">
-                    Этап: <strong class="text-light" id="stage-name-display">{{ stage.name }}</strong> |
-                    Ед. измерения: <strong class="text-light">{{ stage.type.measure_unit }}</strong>
+                <h2 class="mb-1 text-info fw-bold">Ввод результатов</h2>
+                <p class="text-muted mb-0 fs-5">
+                    Этап: <strong class="text-white" id="stage-name-display">{{ stage.name }}</strong> |
+                    Ед. измерения: <strong class="text-white">{{ stage.type.measure_unit }}</strong>
                 </p>
             </div>
         </div>
@@ -21,26 +21,23 @@
          role="alert">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span>
-                <strong>⚠️ Автономный режим:</strong> Найдено <span id="local-records-count" class="fw-bold">0</span> результатов, сохраненных локально. Они будут отправлены в базу автоматически при восстановлении интернета.
+                <strong>Автономный режим:</strong> Найдено <span id="local-records-count" class="fw-bold">0</span> результатов, сохраненных локально. Они будут отправлены в базу автоматически при восстановлении интернета.
             </span>
             <div>
-                <button id="export-backup-btn" class="btn btn-sm btn-dark me-2">📦 Скачать бэкап</button>
+                <button id="export-backup-btn" class="btn btn-sm btn-dark me-2">Скачать бэкап</button>
             </div>
         </div>
     </div>
     <div class="row g-4">
         <div class="col-md-4 no-print">
-            <div class="card sticky-md-top">
-                <div class="card-body">
-                    <h5 class="card-title text-warning mb-3">📝 Новая запись</h5>
-                    <form id="result-form" method="post">
+            <div class="card border-0 shadow-sm sticky-md-top">
+                <div class="card-body px-4 py-4">
+                    <h5 class="card-title text-info fw-bold mb-4">Новая запись</h5>
+                    <form id="result-form" method="post" class="form-vega-wrapper">
                         {% csrf_token %}
                         <div class="mb-3">
                             <label for="id_participant" class="form-label">Участник</label>
-                            <select name="participant"
-                                    class="form-select bg-dark text-light border-secondary"
-                                    id="id_participant"
-                                    required>
+                            <select name="participant" class="form-select" id="id_participant" required>
                                 <option value="" selected disabled>-- Выберите спортсмена --</option>
                                 {% for p in participants %}
                                     <option value="{{ p.id }}">{{ p.full_name }} (№{{ p.bib_number }})</option>
@@ -52,7 +49,7 @@
                             <input type="number"
                                    step="0.001"
                                    name="value"
-                                   class="form-control bg-dark text-light border-secondary"
+                                   class="form-control"
                                    id="id_value"
                                    required>
                         </div>
@@ -61,30 +58,27 @@
                             <input type="number"
                                    step="0.001"
                                    name="penalty_value"
-                                   class="form-control bg-dark text-light border-secondary"
+                                   class="form-control"
                                    id="id_penalty_value"
                                    value="0.000">
                         </div>
-                        <div class="mb-3">
+                        <div class="mb-4">
                             <label for="id_comment" class="form-label">Примечание</label>
-                            <textarea name="comment"
-                                      class="form-control bg-dark text-light border-secondary"
-                                      id="id_comment"
-                                      rows="2"></textarea>
+                            <textarea name="comment" class="form-control" id="id_comment" rows="2"></textarea>
                         </div>
-                        <button type="submit" class="btn btn-warning w-100 fw-bold">💾 Сохранить</button>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">Сохранить результат</button>
                     </form>
                 </div>
             </div>
         </div>
         <div class="col-md-8">
-            <div class="card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <h5 class="card-title text-warning mb-0">📊 Протокол ввода</h5>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body px-4 py-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                        <h5 class="card-title text-white fw-bold mb-0">Протокол ввода</h5>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-dark table-striped align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
                                     <th>Спортсмен</th>
@@ -97,8 +91,8 @@
                             <tbody>
                                 {% for r in results %}
                                     <tr>
-                                        <td>{{ r.participant.full_name }} (№{{ r.participant.bib_number }})</td>
-                                        <td class="fw-bold">{{ r.value }}</td>
+                                        <td><span class="text-white">{{ r.participant.full_name }}</span> <span class="text-muted">(№{{ r.participant.bib_number }})</span></td>
+                                        <td class="fw-bold text-info">{{ r.value }}</td>
                                         <td>{{ r.penalty_value|default:"0" }}</td>
                                         <td class="text-muted small">{{ r.comment|default:"—" }}</td>
                                         <td>
@@ -115,7 +109,7 @@
                                     </tr>
                                 {% empty %}
                                     <tr id="empty-table-row">
-                                        <td colspan="5" class="text-center text-muted py-4">Пока нет введенных результатов.</td>
+                                        <td colspan="5" class="text-center text-muted py-5">Пока нет введенных результатов.</td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -127,8 +121,8 @@
     </div>
     <template id="new-row-template">
         <tr>
-            <td class="js-name"></td>
-            <td class="fw-bold js-val"></td>
+            <td class="js-name text-white"></td>
+            <td class="fw-bold text-info js-val"></td>
             <td class="js-pen"></td>
             <td class="js-comm text-muted small"></td>
             <td>
@@ -159,7 +153,6 @@
             return cookieValue;
         }
 
-        // Универсальная отрисовка строки в таблице
         function renderResultRow(pName, val, pen, comm, isOffline = false) {
             const template = document.getElementById("new-row-template");
             const clone = template.content.cloneNode(true);
@@ -169,12 +162,10 @@
             clone.querySelector(".js-pen").textContent = pen;
             clone.querySelector(".js-comm").textContent = comm || "—";
 
-            // Если сохранено офлайн — вешаем желтые маркеры
             if (isOffline) {
                 const rowElement = clone.querySelector("tr") || clone.firstElementChild;
                 if (rowElement) {
-                    rowElement.classList.add("offline-row"); // Добавили класс для поиска
-                    rowElement.style.borderLeft = "4px solid #ffc107";
+                    rowElement.classList.add("offline-row", "offline-row-border");
                     rowElement.title = "Ожидает синхронизации с сервером";
                 }
                 const badge = clone.querySelector(".badge");
@@ -194,7 +185,6 @@
             document.getElementById("result-form").reset();
             document.getElementById("id_penalty_value").value = "0.000";
         }
-
 
         // ==========================================
         // 2. РАБОТА С ОФЛАЙН-ХРАНИЛИЩЕМ (LocalStorage)
@@ -238,7 +228,6 @@
             }
         }
 
-
         // ==========================================
         // 3. ОСНОВНАЯ ЛОГИКА (ОТПРАВКА И АВТО-СИНХРОНИЗАЦИЯ)
         // ==========================================
@@ -260,7 +249,6 @@
             if (navigator.onLine) {
                 sendDataToServer(pId, pName, val, pen, comm, selectedIndex);
             } else {
-                // Если интернета нет — локальное сохранение
                 addRecordToStorage({
                     participantId: pId,
                     participantName: pName,
@@ -322,7 +310,6 @@
                 });
         }
 
-        // --- МАГИЯ АВТОМАТИЗАЦИИ ---
         function syncOfflineData() {
             const records = getLocalRecords();
             if (records.length === 0) return;
@@ -337,11 +324,10 @@
             });
 
             chain.then(() => {
-                // Плавно обновляем UI без перезагрузки, чтобы не мешать судье вводить новые данные
                 document.querySelectorAll(".offline-row").forEach(row => {
-                    row.style.borderLeft = "4px solid #198754"; // Зеленая полоса успеха
+                    row.classList.remove("offline-row-border", "offline-row");
+                    row.classList.add("synced-row-border");
                     row.title = "Синхронизировано";
-                    row.classList.remove("offline-row");
 
                     const badge = row.querySelector(".offline-badge");
                     if (badge) {
@@ -349,14 +335,11 @@
                         badge.className = "badge bg-success text-light";
                     }
                 });
-                renderOfflineBanner(); // Спрячет желтый баннер
+                renderOfflineBanner();
             });
         }
 
-        // БРАУЗЕР САМ ВЫЗОВЕТ ЭТУ ФУНКЦИЮ, КАК ТОЛЬКО ПОЙМАЕТ WI-FI ИЛИ LTE!
         window.addEventListener('online', syncOfflineData);
-
-        // --- ДОБАВЛЯЕМ СЮДА: Слушаем наш умный пинг из base.html ---
         window.addEventListener('server-back-online', syncOfflineData);
 
         // ==========================================
@@ -380,7 +363,6 @@
             });
         }
 
-        // Твоя функция скачивания .json бэкапа
         document.getElementById("export-backup-btn").addEventListener("click", function() {
             const records = getLocalRecords();
             if (records.length === 0) {
@@ -397,10 +379,9 @@
             downloadAnchorNode.click();
             downloadAnchorNode.remove();
 
-            alert("✅ Резервная копия успешно скачана! Этот файл можно будет передать Главному судье.");
+            alert("Резервная копия успешно скачана! Этот файл можно будет передать Главному судье.");
         });
 
-        // Инициализация при загрузке страницы
         renderOfflineBanner();
         document.addEventListener("DOMContentLoaded", restoreOfflineUI);
     </script>

@@ -1,203 +1,258 @@
-@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
+/* ==========================================================================
+   VEGA DESIGN SYSTEM - SOFT COSMIC THEME
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Montserrat:wght@500;600;700&display=swap');
 
 :root {
-    /* Палитра Gruvbox Dark */
-    --gb-bg: #282828;
-    --gb-panel: #3c3836;
-    --gb-text: #ebdbb2;
-    --gb-muted: #a89984;
-    --gb-border: #504945;
-    --gb-green: #b8bb26;
-    --gb-red: #fb4934;
-    --gb-yellow: #fabd2f;
-}
-
-body {
-    background-color: var(--gb-bg);
-    color: var(--gb-text);
-    font-family: "Montserrat", sans-serif;
-    line-height: 1.6;
-}
-
-.gb-text-color {
-    color: var(--gb-text);
-}
-
-/* Переопределение компонентов Bootstrap под терминальный стиль */
-.card, .navbar {
-    background-color: var(--gb-panel) !important;
-    border: 1px solid var(--gb-border) !important;
-    border-radius: 0 !important; /* Строгие прямые углы */
-}
-
-.border-bottom, .border-top {
-    border-color: var(--gb-border) !important;
-}
-
-/* Переопределение текстовых цветов Bootstrap */
-.text-muted { color: var(--gb-muted) !important; }
-.text-success { color: var(--gb-green) !important; }
-.text-danger { color: var(--gb-red) !important; }
-.text-warning { color: var(--gb-yellow) !important; }
-.text-light { color: var(--gb-text) !important; }
-
-/* Глобальные ссылки */
-a { color: var(--gb-text); text-decoration: none; transition: color 0.2s; }
-a:hover { color: var(--gb-yellow); }
-.nav-link { color: var(--gb-text) !important; }
-.nav-link:hover { color: var(--gb-yellow) !important; }
-
-/* Таблицы Bootstrap */
-.table { color: var(--gb-text) !important; border-color: var(--gb-border) !important; }
-.table th, .table td { background-color: transparent !important; color: var(--gb-text) !important; border-bottom: 1px solid var(--gb-border); }
-.table thead th { border-bottom: 2px solid var(--gb-border); }
-
-/* Кнопки Bootstrap */
-.btn { border-radius: 0 !important; transition: all 0.2s; }
-
-.btn-outline-light { border-color: var(--gb-border); color: var(--gb-text); }
-.btn-outline-light:hover { background-color: var(--gb-bg); border-color: var(--gb-yellow); color: var(--gb-yellow); }
-
-.btn-outline-success { border-color: var(--gb-green); color: var(--gb-green); }
-.btn-outline-success:hover { background-color: var(--gb-green); color: var(--gb-bg); }
-
-.btn-danger { background-color: transparent; border-color: var(--gb-red); color: var(--gb-red); }
-.btn-danger:hover { background-color: var(--gb-red); color: var(--gb-bg); border-color: var(--gb-red); }
-
-hr {
-    border-color: var(--gb-border);
-}
-
-.login-wrapper {
-    min-height: 60vh;
-}
-
-.login-card {
-    max-width: 400px;
-}
-
-/* ================= Стили для печатного протокола ================= */
-.print-theme {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    font-family: 'Times New Roman', Times, serif !important;
-}
-
-.protocol-header {
-    text-align: center;
-    margin-bottom: 2rem;
-    border-bottom: 2px solid #000000;
-    padding-bottom: 1rem;
-}
-
-/* Переопределяем цвета таблицы для бумаги */
-.print-theme .print-table th,
-.print-theme .print-table td {
-    color: #000000 !important;
-    border-bottom: 1px solid #000000 !important;
-}
-
-.print-theme .print-table thead th {
-    border-bottom: 2px solid #000000 !important;
-}
-
-/* === ПРАВИЛА ДЛЯ ПРИНТЕРА === */
-@media print {
-    /* Скрываем навбар, футер и кнопки при выводе на бумагу */
-    .navbar, footer, .no-print {
-        display: none !important;
-    }
+    /* Цветовая палитра "Вега" */
+    --vega-bg-dark: #090e17;        /* Основной фон (глубокий космос) */
+    --vega-bg-panel: #121b2b;       /* Фон карточек и панелей */
+    --vega-bg-panel-hover: #1a2639; /* Фон карточек при наведении */
+    --vega-border: #1e293b;         /* Мягкие, почти невидимые границы */
     
-    /* Убираем отступы контейнера, чтобы принтер использовал все поля листа */
-    main.container {
-        margin: 0 !important;
-        padding: 0 !important;
-        max-width: 100% !important;
-    }
+    /* Текст */
+    --vega-text-main: #f8fafc;      /* Яркий белый со слегка холодным оттенком */
+    --vega-text-muted: #94a3b8;     /* Приглушенный серый */
+    
+    /* Акценты (Светящиеся неоновые цвета) */
+    --vega-blue-core: #0ea5e9;      /* Звезда Вега (основной) */
+    --vega-blue-glow: #38bdf8;      /* Свечение */
+    --vega-purple: #8b5cf6;         /* Фиолетовый космический */
+    --vega-green: #10b981;          /* Мягкий изумрудный (Успех) */
+    --vega-red: #f43f5e;            /* Розово-красный (Ошибка/Удаление) */
+    --vega-yellow: #fbbf24;         /* Теплый желтый (Предупреждение) */
+
+    /* Геометрия и тени */
+    --vega-radius-lg: 20px;         /* Очень мягкие карточки */
+    --vega-radius-md: 12px;         /* Поля ввода и кнопки */
+    --vega-radius-sm: 8px;          /* Мелкие элементы */
+    --vega-shadow-soft: 0 10px 25px rgba(0, 0, 0, 0.2);
+    --vega-shadow-glow: 0 0 15px rgba(14, 165, 233, 0.4);
+    --vega-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.module-stat-block {
-    min-width: 150px;
+/* ================= БАЗОВЫЕ НАСТРОЙКИ ================= */
+body {
+    background-color: var(--vega-bg-dark);
+    background-image: radial-gradient(circle at top right, rgba(30, 41, 59, 0.5), transparent 40%),
+                      radial-gradient(circle at bottom left, rgba(15, 23, 42, 0.8), transparent 40%);
+    background-attachment: fixed;
+    color: var(--vega-text-main);
+    font-family: 'Nunito', sans-serif; /* Очень мягкий и читаемый шрифт */
+    line-height: 1.6;
+    min-height: 100vh;
 }
 
-/* ================= Финальные стили протокола А4 (Мульти-листы) ================= */
-.protocol-body {
-    background-color: var(--gb-bg);
+h1, h2, h3, h4, h5, h6, .navbar-brand {
+    font-family: 'Montserrat', sans-serif; /* Заголовки чуть строже */
+    font-weight: 700;
+    letter-spacing: 0.3px;
 }
 
-/* Панель с галочками */
-.protocol-export-panel {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    align-items: center;
-    background-color: var(--gb-bg-hard);
-    padding: 15px 20px;
-    border-radius: 6px;
-    border: 1px solid var(--gb-border);
-    margin-bottom: 20px;
+/* ================= КАРТОЧКИ И ПАНЕЛИ ================= */
+.card {
+    background-color: var(--vega-bg-panel) !important;
+    border: 1px solid var(--vega-border) !important;
+    border-radius: var(--vega-radius-lg) !important;
+    box-shadow: var(--vega-shadow-soft);
+    transition: var(--vega-transition);
+    overflow: hidden; /* Чтобы внутренние элементы не вылезали за скругления */
 }
-.protocol-panel-text { color: var(--gb-light); font-weight: bold; }
-.protocol-checkbox-label {
+
+.card:hover {
+    border-color: rgba(56, 189, 248, 0.2) !important;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+}
+
+.card-header, .card-footer {
+    background-color: rgba(0, 0, 0, 0.1) !important;
+    border-color: var(--vega-border) !important;
+}
+
+.navbar {
+    background-color: rgba(18, 27, 43, 0.85) !important;
+    backdrop-filter: blur(10px); /* Эффект матового стекла */
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--vega-border) !important;
+}
+
+/* ================= ТЕКСТ И ССЫЛКИ ================= */
+.text-muted { color: var(--vega-text-muted) !important; }
+.text-success { color: var(--vega-green) !important; }
+.text-danger { color: var(--vega-red) !important; }
+.text-warning { color: var(--vega-yellow) !important; }
+.text-info, .text-primary { color: var(--vega-blue-glow) !important; text-shadow: 0 0 10px rgba(56, 189, 248, 0.3); }
+
+a { color: var(--vega-blue-core); text-decoration: none; transition: var(--vega-transition); }
+a:hover { color: var(--vega-blue-glow); text-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
+
+/* ================= ЭЛЕМЕНТЫ УПРАВЛЕНИЯ (КНОПКИ) ================= */
+.btn {
+    border-radius: var(--vega-radius-md) !important;
+    font-weight: 600;
+    padding: 0.6rem 1.2rem;
+    transition: var(--vega-transition);
+    letter-spacing: 0.5px;
+}
+
+.btn:active { transform: scale(0.97); }
+
+/* Главная акцентная кнопка */
+.btn-primary, .btn-info {
+    background: linear-gradient(135deg, var(--vega-blue-core), var(--vega-purple));
+    border: none !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+}
+.btn-primary:hover, .btn-info:hover {
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+    transform: translateY(-2px);
+}
+
+.btn-success { background-color: var(--vega-green); border-color: var(--vega-green); color: #000; }
+.btn-success:hover { background-color: #059669; color: #fff; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); }
+
+.btn-warning { background-color: var(--vega-yellow); border-color: var(--vega-yellow); color: #000; }
+.btn-warning:hover { background-color: #d97706; color: #fff; box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4); }
+
+/* Контурные кнопки */
+.btn-outline-light { border: 2px solid var(--vega-border); color: var(--vega-text-muted); background: transparent; }
+.btn-outline-light:hover { border-color: var(--vega-text-main); color: var(--vega-bg-dark); background: var(--vega-text-main); }
+
+.btn-outline-success { border: 2px solid var(--vega-green); color: var(--vega-green); background: transparent; }
+.btn-outline-success:hover { background-color: var(--vega-green); color: #000; box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
+
+.btn-outline-warning { border: 2px solid var(--vega-yellow); color: var(--vega-yellow); background: transparent; }
+.btn-outline-warning:hover { background-color: var(--vega-yellow); color: #000; box-shadow: 0 0 15px rgba(251, 191, 36, 0.3); }
+
+.btn-danger, .btn-outline-danger { border: 2px solid var(--vega-red); color: var(--vega-red); background: transparent; }
+.btn-danger:hover, .btn-outline-danger:hover { background-color: var(--vega-red); color: #fff; box-shadow: 0 0 15px rgba(244, 63, 94, 0.4); }
+
+/* ================= ФОРМЫ (INPUTS & SELECTS) ================= */
+.form-control, .form-select {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid var(--vega-border) !important;
+    color: var(--vega-text-main) !important;
+    border-radius: var(--vega-radius-md) !important;
+    padding: 0.75rem 1rem;
+    transition: var(--vega-transition);
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    border-color: var(--vega-blue-glow) !important;
+    box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.15) !important;
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--vega-text-muted);
+    margin-bottom: 0.5rem;
+    margin-left: 0.25rem;
+}
+
+/* ================= ТАБЛИЦЫ ================= */
+.table-responsive {
+    border-radius: var(--vega-radius-md);
+    overflow: hidden;
+}
+
+.table { 
+    color: var(--vega-text-main) !important; 
+    border-color: var(--vega-border) !important; 
+    margin-bottom: 0;
+}
+
+.table th, .table td { 
+    background-color: transparent !important; 
+    color: var(--vega-text-main) !important; 
+    border-bottom: 1px solid var(--vega-border); 
+    padding: 1.2rem 1rem !important;
+    vertical-align: middle;
+}
+
+.table thead th { 
+    background-color: rgba(0,0,0,0.2) !important;
+    color: var(--vega-text-muted) !important; 
+    font-weight: 700; 
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    border-bottom: none;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.03) !important;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--gb-fg);
-    user-select: none;
-    margin: 0;
 }
-.protocol-checkbox-input {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    accent-color: var(--gb-green);
+
+/* ================= TOASTS & BADGES ================= */
+.toast-container { z-index: 1055 !important; }
+.toast {
+    background-color: var(--vega-bg-panel) !important;
+    border: 1px solid var(--vega-border) !important;
+    border-radius: var(--vega-radius-md) !important;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.4) !important;
+    color: var(--vega-text-main);
 }
+.badge {
+    padding: 0.5em 0.8em;
+    border-radius: var(--vega-radius-sm);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+/* ================= УТИЛИТЫ И ПРОЧЕЕ ================= */
+hr { border-color: var(--vega-border); opacity: 1; }
+.login-wrapper { min-height: 85vh; }
+.login-card { max-width: 450px; background: rgba(18, 27, 43, 0.6) !important; backdrop-filter: blur(20px); }
+
+/* ==========================================================================
+   СТИЛИ ДЛЯ ПЕЧАТИ И PDF-ПРОТОКОЛОВ (СТРОГИЙ ГОСТ)
+   НИЖЕ ЭТОЙ ЛИНИИ ЦВЕТНАЯ ТЕМА ОТКЛЮЧАЕТСЯ
+   ========================================================================== */
+
+@media print {
+    .navbar, footer, .no-print, .toast-container { display: none !important; }
+    body { background-color: #ffffff !important; background-image: none !important; color: #000000 !important; }
+    main.container { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
+}
+
+.protocol-body { background-color: var(--vega-bg-dark); background-image: none; }
+.protocol-export-panel { 
+    display: flex; flex-wrap: wrap; gap: 15px; align-items: center; 
+    background-color: var(--vega-bg-panel); padding: 15px 20px; 
+    border-radius: var(--vega-radius-md); border: 1px solid var(--vega-border); margin-bottom: 20px; 
+}
+.protocol-panel-text { color: var(--vega-text-main); font-weight: bold; }
+.protocol-checkbox-label { cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--vega-text-main); user-select: none; margin: 0; }
+.protocol-checkbox-input { width: 18px; height: 18px; cursor: pointer; accent-color: var(--vega-blue-core); }
 .protocol-btn-wrap { margin-left: auto; }
 
-/* Независимый лист А4 на экране (Сопоставим с физическими размерами) */
-.protocol-sheet {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    max-width: 210mm;      /* Ширина формата А4 */
-    width: 100%;
-    min-height: 297mm;     /* Высота формата А4 (выглядит как полный лист) */
-    margin: 0 auto 40px auto;
-    padding: 20mm 15mm;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    box-sizing: border-box;
-    border-radius: 4px;
-    transition: opacity 0.3s ease;
+/* Белый лист бумаги */
+.protocol-sheet { 
+    background-color: #ffffff !important; color: #000000 !important; font-family: 'Times New Roman', Times, serif !important;
+    max-width: 210mm; width: 100%; min-height: 297mm; margin: 0 auto 40px auto; padding: 20mm 15mm; 
+    box-shadow: 0 15px 40px rgba(0,0,0,0.5); box-sizing: border-box; border-radius: 4px; transition: opacity 0.3s ease; 
 }
+.protocol-sheet.pdf-mode { margin: 0 !important; box-shadow: none !important; border-radius: 0 !important; min-height: auto !important; }
+.protocol-page-break { page-break-before: always !important; clear: both; }
+.protocol-hidden { display: none !important; }
 
-/* Модификатор для подготовки к PDF (снимает экранные ограничения) */
-.protocol-sheet.pdf-mode {
-    margin: 0 !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    min-height: auto !important; /* Разрешаем PDF самому дробить лист по высоте контента */
-}
-
-/* Жесткий разрыв страницы для PDF (чтобы 2-я таблица не лезла на первый лист) */
-.protocol-page-break {
-    page-break-before: always !important;
-    clear: both;
-}
-
-/* Скрытие листов без инлайн-стилей */
-.protocol-hidden {
-    display: none !important;
-}
-
-/* Шапка и таблицы */
+/* Типографика на бумаге */
 .protocol-doc-header { text-align: center; border-bottom: 2px solid #000000; padding-bottom: 15px; margin-bottom: 25px; }
-.protocol-doc-header h1 { font-size: 24px; margin: 0 0 5px 0; font-weight: bold; color: #000000 !important; }
-.protocol-doc-header h2 { font-size: 20px; margin: 0 0 10px 0; font-weight: normal; color: #000000 !important; }
-.protocol-doc-header p { font-size: 14px; margin: 0; color: #555555 !important; }
-.protocol-section-title { text-align: center; font-size: 18px; text-transform: uppercase; margin: 25px 0 15px 0; font-weight: bold; color: #000000 !important; letter-spacing: 1px; }
+.protocol-doc-header h1 { font-family: 'Times New Roman', Times, serif !important; font-size: 24px; margin: 0 0 5px 0; font-weight: bold; color: #000000 !important; letter-spacing: 0; }
+.protocol-doc-header h2 { font-family: 'Times New Roman', Times, serif !important; font-size: 20px; margin: 0 0 10px 0; font-weight: normal; color: #000000 !important; }
+.protocol-doc-header p { font-family: 'Times New Roman', Times, serif !important; font-size: 14px; margin: 0; color: #333333 !important; }
+.protocol-section-title { font-family: 'Times New Roman', Times, serif !important; text-align: center; font-size: 18px; text-transform: uppercase; margin: 25px 0 15px 0; font-weight: bold; color: #000000 !important; letter-spacing: 1px; }
 
-.protocol-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; background-color: #ffffff !important;}
-.protocol-table th, .protocol-table td { border: 1px solid #000000 !important; padding: 10px 12px !important; font-size: 14px; text-align: left; color: #000000 !important; background-color: #ffffff !important;}
+/* Таблица на бумаге */
+.protocol-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; background-color: #ffffff !important; }
+.protocol-table th, .protocol-table td { 
+    font-family: 'Times New Roman', Times, serif !important;
+    border: 1px solid #000000 !important; padding: 10px 12px !important; 
+    font-size: 14px; text-align: left; color: #000000 !important; background-color: #ffffff !important; 
+}
 .protocol-table th { background-color: #f2f2f2 !important; font-weight: bold; text-align: center; }
 
 .protocol-col-place { width: 12%; text-align: center; }
@@ -206,3 +261,127 @@ hr {
 .protocol-col-score { width: 20%; text-align: center; font-weight: bold; }
 .protocol-signatures { margin-top: 50px; display: flex; justify-content: space-between; font-size: 14px; color: #000000 !important; }
 .protocol-text-center { text-align: center; }
+
+/* ================= СТИЛИ ГЛАВНОЙ ПАНЕЛИ ================= */
+.dashboard-welcome-card {
+    background: linear-gradient(145deg, var(--vega-bg-panel), rgba(14, 165, 233, 0.05));
+}
+
+.dashboard-title {
+    letter-spacing: 0.5px;
+}
+
+/* ================= СИСТЕМНЫЕ УТИЛИТЫ И СОСТОЯНИЯ ================= */
+.pointer-disabled {
+    pointer-events: none !important;
+}
+
+.pointer-auto {
+    pointer-events: auto !important;
+}
+
+.toast-high-z {
+    z-index: 1055 !important;
+}
+
+/* ================= ОФОРМЛЕНИЕ СТАНДАРТНЫХ ФОРМ ДЖАНГО ================= */
+.form-vega-wrapper p {
+    margin-bottom: 1.5rem;
+}
+.form-vega-wrapper label {
+    font-weight: 600;
+    color: var(--vega-text-muted);
+    margin-bottom: 0.5rem;
+    display: inline-block;
+    margin-left: 0.25rem;
+}
+.form-vega-wrapper input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+    accent-color: var(--vega-blue-core);
+    margin-right: 0.5rem;
+    vertical-align: text-bottom;
+}
+.form-vega-wrapper helptext {
+    font-size: 0.85rem;
+    color: var(--vega-text-muted);
+    display: block;
+    margin-top: 0.25rem;
+}
+
+/* ================= СТИЛИ ОФЛАЙН-СТРОК (ВВОД РЕЗУЛЬТАТОВ) ================= */
+.offline-row-border {
+    border-left: 4px solid var(--vega-yellow) !important;
+}
+
+.synced-row-border {
+    border-left: 4px solid var(--vega-green) !important;
+    transition: var(--vega-transition);
+}
+
+/* ================= ВЫПАДАЮЩИЕ МЕНЮ (DROPDOWNS И SELECT) ================= */
+
+/* 1. Стилизация Bootstrap Dropdown (Кнопки "Скачать" и т.д.) */
+.dropdown-menu {
+    background-color: var(--vega-bg-panel) !important;
+    border: 1px solid var(--vega-border) !important;
+    border-radius: var(--vega-radius-md) !important;
+    box-shadow: var(--vega-shadow-soft) !important;
+    padding: 0.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.dropdown-item {
+    color: var(--vega-text-main) !important;
+    border-radius: var(--vega-radius-sm);
+    transition: var(--vega-transition);
+    padding: 0.5rem 1rem;
+    margin-bottom: 0.2rem;
+}
+
+.dropdown-item:last-child {
+    margin-bottom: 0;
+}
+
+.dropdown-item:hover, .dropdown-item:focus {
+    background-color: rgba(14, 165, 233, 0.15) !important;
+    color: var(--vega-blue-glow) !important;
+    transform: translateX(4px); /* Легкий сдвиг текста вправо при наведении */
+}
+
+/* 2. Стилизация стандартных элементов форм <select> и <option> */
+.form-select {
+    cursor: pointer;
+}
+
+select option {
+    background-color: var(--vega-bg-dark); /* Темный фон для списка опций */
+    color: var(--vega-text-main);
+    padding: 10px;
+    font-weight: 500;
+}
+
+select option:checked,
+select option:hover {
+    background-color: var(--vega-bg-panel) !important;
+    color: var(--vega-blue-glow) !important;
+}
+
+/* ================= МОДАЛЬНЫЕ ОКНА (ВЕГА) ================= */
+.modal-content {
+    background-color: var(--vega-bg-panel) !important;
+    border: 1px solid var(--vega-border) !important;
+    border-radius: var(--vega-radius-lg) !important;
+    box-shadow: var(--vega-shadow-soft) !important;
+    color: var(--vega-text-main);
+}
+
+.modal-header, .modal-footer {
+    border-color: var(--vega-border) !important;
+}
+
+/* Делаем фон позади модалки слегка затемненным и размытым */
+.modal-backdrop.show {
+    opacity: 0.7 !important;
+    backdrop-filter: blur(3px);
+}

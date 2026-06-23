@@ -1,22 +1,25 @@
-<nav class="navbar border-bottom py-3 mb-4">
-    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div class="navbar-brand text-warning fw-bold m-0">🏆 АСУ Соревнований</div>
-        <div id="global-network-status"
-             class="badge bg-success ms-md-3 d-none d-md-block shadow-sm">🟢 Онлайн</div>
-        <button id="manual-cache-btn"
-                class="btn btn-sm btn-outline-light ms-2 requires-network"
-                title="Принудительно скачать все таблицы и формы для работы без интернета">☁️ Скачать базу</button>
-        <ul class="nav d-flex align-items-center gap-3 m-0 p-0">
-            <li class="nav-item"><a href="{% url "dashboard" %}" class="nav-link px-0">Главная</a></li>
-            {% if request.user.is_authenticated %}
-                <li class="nav-item"><span class="text-success fw-bold">{{ request.user.username }}</span></li>
+<nav class="navbar border-bottom py-3 mb-4 shadow-sm">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <a href="{% url 'dashboard' %}"
+           class="navbar-brand text-info fw-bold m-0 text-decoration-none fs-4">Вега</a>
+        <div class="d-flex align-items-center gap-2 ms-auto ms-md-0">
+            <div id="global-network-status" class="badge bg-success shadow-sm p-2">Онлайн</div>
+            <button id="manual-cache-btn"
+                    class="btn btn-sm btn-outline-light requires-network"
+                    title="Скачать базу">Скачать актуальные данные</button>
+        </div>
+        {% if request.user.is_authenticated %}
+            <ul class="nav d-flex align-items-center justify-content-end gap-3 m-0 p-0 w-100 w-md-auto mt-2 mt-md-0">
                 <li class="nav-item">
-                    <form action="{% url "logout" %}" method="post" class="d-inline">
+                    <span class="text-info fw-bold">{{ request.user.username }}</span>
+                </li>
+                <li class="nav-item">
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-danger">Выход</button>
+                        <button type="submit" class="btn btn-sm btn-danger fw-bold">Выход</button>
                     </form>
                 </li>
-            {% endif %}
-        </ul>
+            </ul>
+        {% endif %}
     </div>
 </nav>

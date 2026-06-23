@@ -3,104 +3,106 @@
 {% block content %}
     <div class="mb-3 no-print">
         <a href="{% url 'organizer_competitions' %}"
-           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+           class="btn btn-sm btn-outline-light smart-back">Назад</a>
     </div>
-    <div class="card mb-4 border-warning">
-        <div class="card-body py-4">
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body py-4 px-4">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                 <div>
-                    <h2 class="mb-2 text-warning">{{ competition.title }}</h2>
-                    <p class="text-muted m-0">
-                        Дата: <strong class="text-light">{{ competition.start_date|date:"d.m.Y" }}</strong> |
+                    <h2 class="mb-2 text-info fw-bold">{{ competition.title }}</h2>
+                    <p class="text-muted m-0 fs-5">
+                        Дата: <strong class="text-white">{{ competition.start_date|date:"d.m.Y" }}</strong> |
                         Статус: <span class="text-success fw-bold">{{ competition.status }}</span>
                     </p>
                 </div>
                 <div>
-                    <form action="{% url "toggle_archive" competition.id %}"
+                    <form action="{% url 'toggle_archive' competition.id %}"
                           method="post"
                           class="d-inline">
                         {% csrf_token %}
                         <a href="{% url 'edit_competition' competition.id %}"
-                           class="btn btn-outline-warning requires-network">⚙️ Настройки</a>
+                           class="btn btn-outline-light requires-network px-3">Настройки</a>
                         <button type="submit"
-                                class="btn btn-outline-light"
-                                onclick="return confirm('Отправить турнир в архив?');">📦 В архив</button>
+                                class="btn btn-outline-danger px-3"
+                                onclick="return confirm('Отправить турнир в архив?');">В архив</button>
                     </form>
                 </div>
             </div>
         </div>
     </div>
     <div class="d-flex flex-column gap-3">
-        <div class="card">
-            <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-4 px-4">
                 <div class="flex-grow-1">
-                    <h3 class="mb-1">Этапы и Дисциплины</h3>
+                    <h3 class="mb-1 fw-bold text-white">Этапы и Дисциплины</h3>
                     <p class="text-muted m-0">Создание спортивных этапов и настройка единиц измерения.</p>
                 </div>
                 <div class="text-md-end text-start module-stat-block">
-                    <h4 class="text-warning m-0">{{ stats.stages }} <span class="fs-6 text-muted fw-normal">этапов</span></h4>
+                    <h4 class="text-info m-0 fw-bold">{{ stats.stages }} <span class="fs-6 text-muted fw-normal">этапов</span></h4>
                 </div>
                 <div>
-                    <a href="{% url "manage_stages" competition.id %}"
-                       class="btn btn-outline-success text-nowrap w-100">Настроить этапы</a>
+                    <a href="{% url 'manage_stages' competition.id %}"
+                       class="btn btn-info text-nowrap w-100 px-4">Настроить этапы</a>
                 </div>
             </div>
         </div>
-        <div class="card">
-            <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-4 px-4">
                 <div class="flex-grow-1">
-                    <h3 class="mb-1">Спортсмены</h3>
+                    <h3 class="mb-1 fw-bold text-white">Спортсмены</h3>
                     <p class="text-muted m-0">Регистрация участников и выдача стартовых номеров.</p>
                 </div>
                 <div class="text-md-end text-start module-stat-block">
-                    <h4 class="text-warning m-0">{{ stats.participants }} <span class="fs-6 text-muted fw-normal">участников</span></h4>
+                    <h4 class="text-info m-0 fw-bold">{{ stats.participants }} <span class="fs-6 text-muted fw-normal">участников</span></h4>
                 </div>
                 <div>
-                    <a href="{% url "manage_participants" competition.id %}"
-                       class="btn btn-outline-success text-nowrap w-100">База участников</a>
+                    <a href="{% url 'manage_participants' competition.id %}"
+                       class="btn btn-info text-nowrap w-100 px-4">База участников</a>
                 </div>
             </div>
         </div>
         {% if competition.has_team %}
-            <div class="card">
-                <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-4 px-4">
                     <div class="flex-grow-1">
-                        <h3 class="mb-1">Команды</h3>
-                        <p class="text-muted m-0">Формирование команд и распределение участников по отрядам.</p>
+                        <h3 class="mb-1 fw-bold text-white">Команды</h3>
+                        <p class="text-muted m-0">Формирование команд и распределение участников.</p>
                     </div>
                     <div class="text-md-end text-start module-stat-block">
-                        <h4 class="text-warning m-0">{{ stats.teams }} <span class="fs-6 text-muted fw-normal">команд</span></h4>
+                        <h4 class="text-info m-0 fw-bold">{{ stats.teams }} <span class="fs-6 text-muted fw-normal">команд</span></h4>
                     </div>
                     <div>
-                        <a href="{% url "manage_teams" competition.id %}"
-                           class="btn btn-outline-success text-nowrap w-100">Составы команд</a>
+                        <a href="{% url 'manage_teams' competition.id %}"
+                           class="btn btn-info text-nowrap w-100 px-4">Составы команд</a>
                     </div>
                 </div>
             </div>
         {% endif %}
-        <div class="card border-success mt-2">
-            <div class="d-flex flex-column flex-sm-row gap-2">
-                <a href="{% url 'competition_summary' competition.id %}"
-                   class="btn btn-outline-success text-nowrap w-100">🏆 Итоговая таблица</a>
-                <a href="{% url 'print_protocol' competition.id %}"
-                   class="btn btn-outline-light text-nowrap w-100 requires-network">📄 Протокол (PDF)</a>
-                <div class="dropdown w-100">
-                    <button class="btn btn-outline-warning text-nowrap w-100 dropdown-toggle requires-network"
-                            type="button"
-                            id="exportDropdown"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false">📊 Скачать таблицу</button>
-                    <ul class="dropdown-menu dropdown-menu-dark w-100 shadow-sm"
-                        aria-labelledby="exportDropdown">
-                        <li>
-                            <a class="dropdown-item requires-network"
-                               href="{% url 'export_xlsx_report' competition.id %}">📗 Формат Excel (.xlsx)</a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item requires-network"
-                               href="{% url 'export_csv_report' competition.id %}">📓 Формат CSV (.csv)</a>
-                        </li>
-                    </ul>
+        <div class="card border-0 shadow-sm mt-2">
+            <div class="card-body py-4 px-4">
+                <div class="d-flex flex-column flex-sm-row gap-3">
+                    <a href="{% url 'competition_summary' competition.id %}"
+                       class="btn btn-success text-nowrap flex-grow-1 shadow-sm">Итоговая таблица</a>
+                    <a href="{% url 'print_protocol' competition.id %}"
+                       class="btn btn-outline-light text-nowrap flex-grow-1 requires-network">Протокол (PDF)</a>
+                    <div class="dropdown flex-grow-1">
+                        <button class="btn btn-primary text-nowrap w-100 dropdown-toggle requires-network shadow-sm"
+                                type="button"
+                                id="exportDropdown"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">Скачать таблицу</button>
+                        <ul class="dropdown-menu dropdown-menu-dark w-100 shadow-sm border-0"
+                            aria-labelledby="exportDropdown">
+                            <li>
+                                <a class="dropdown-item requires-network py-2"
+                                   href="{% url 'export_xlsx_report' competition.id %}">Формат Excel (.xlsx)</a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item requires-network py-2"
+                                   href="{% url 'export_csv_report' competition.id %}">Формат CSV (.csv)</a>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>

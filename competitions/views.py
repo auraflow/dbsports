@@ -3,12 +3,10 @@ import openpyxl
 from functools import wraps
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseForbidden
 from django.contrib.auth import logout
-from django.views.decorators.http import require_POST
+from django.http import HttpResponse, JsonResponse
 from django.db.models import ProtectedError, Q 
 from django.contrib import messages
-from django.http import JsonResponse
 from django.urls import reverse
 from django.db import IntegrityError
 
@@ -27,6 +25,21 @@ from .services import calculate_stage_standings
 # 1. СИСТЕМА БЕЗОПАСНОСТИ И ДЕКОРАТОРЫ
 # ==========================================
 
+def safe_require_POST(view_func):
+    """
+    Умная замена стандартному @require_POST.
+    Вместо выкидывания системной ошибки 405 Method Not Allowed, 
+    выдает красивый Toast и мягко возвращает пользователя назад.
+    """
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if request.method != 'POST':
+            messages.warning(request, "🛑 Недопустимый запрос. Пожалуйста, используйте кнопки интерфейса.")
+            # Возвращаем пользователя туда, откуда он пришел, либо на главную панель
+            return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
 def role_required(allowed_roles):
     """Универсальный декоратор проверки прав доступа по ролям"""
     def decorator(view_func):
@@ -35,9 +48,13 @@ def role_required(allowed_roles):
             if request.user.is_superuser:
                 return view_func(request, *args, **kwargs)
             if not request.user.role:
-                return HttpResponseForbidden("У вас нет назначенной роли в системе.")
+                # ИСПРАВЛЕНИЕ: Выводим Toast и возвращаем на главную
+                messages.error(request, "🛑 Ошибка доступа: У вас нет назначенной роли в системе.")
+                return redirect('dashboard')
             if request.user.role.role_name not in allowed_roles:
-                return HttpResponseForbidden("У вас нет прав для доступа к этой странице.")
+                # ИСПРАВЛЕНИЕ: Выводим Toast и возвращаем на главную
+                messages.error(request, "🛑 Отказано в доступе: У вас нет прав для этого действия.")
+                return redirect('dashboard')
             return view_func(request, *args, **kwargs)
         return _wrapped_view
     return decorator
@@ -217,7 +234,8 @@ def enter_result(request, stage_id):
                         
             # === ЗАЩИТА ОТ КРАЖИ УЧАСТНИКА (Mass Assignment) ===
             if result.participant.competition != stage.competition:
-                return HttpResponseForbidden("Критическая ошибка: Попытка привязать участника из другого турнира!")
+                messages.error(request, "🛑 Критическая ошибка: Попытка привязать участника из другого турнира!")
+                return redirect('enter_result', stage_id=stage.id)
             # ===================================================
 
             # ЗАЩИТА: Запрет на дублирование результатов (Race Condition)
@@ -375,13 +393,62 @@ def stage_verify_panel(request, stage_id):
 
 @login_required
 @chief_judge_required
-@require_POST
+@safe_require_POST
 @owner_lock
 @archive_lock
 def verify_results_backend(request, stage_id):
-    """Обработчик действий: Верификация, Штраф, Удаление, Отмена верификации"""
+    """Обработчик действий: Верификация, Штраф, Удаление, Отмена верификации + Массовые действия"""
     stage = get_object_or_404(Stage, pk=stage_id)
     action = request.POST.get('action')
+
+    # === 1. МАССОВЫЕ ДЕЙСТВИЯ (Не требуют конкретного result_id) ===
+    
+    if action == 'verify_all':
+        # Выбираем только те результаты этапа, которые еще не верифицированы
+        unverified_results = Result.objects.filter(stage=stage, is_verified=False)
+        count = unverified_results.count()
+        
+        if count > 0:
+            # Быстрое обновление в базе данных одним SQL-запросом
+            unverified_results.update(is_verified=True)
+            
+            # Пишем в системный журнал
+            AuditLog.objects.create(
+                user=request.user, 
+                competition=stage.competition,
+                action="Массовая верификация",
+                details=f"Главный судья массово утвердил все ожидающие результаты ({count} шт.) на этапе «{stage.name}»."
+            )
+            messages.success(request, f"Все ожидающие результаты ({count} шт.) успешно подтверждены.")
+        else:
+            messages.info(request, "На этом этапе нет результатов, ожидающих проверки.")
+            
+        return redirect('stage_verify_panel', stage_id=stage.id)
+
+    elif action == 'delete_all':
+        # Выбираем абсолютно все результаты этого этапа
+        all_results = Result.objects.filter(stage=stage)
+        count = all_results.count()
+        
+        if count > 0:
+            all_results.delete()
+            
+            # Пишем в системный журнал
+            AuditLog.objects.create(
+                user=request.user, 
+                competition=stage.competition,
+                action="Массовое удаление результатов",
+                details=f"Главный судья полностью очистил этап «{stage.name}», безвозвратно удалив {count} результатов."
+            )
+            messages.success(request, f"Все результаты этапа ({count} шт.) были безвозвратно удалены.")
+        else:
+            messages.info(request, "На этом этапе пока нет результатов для удаления.")
+            
+        return redirect('stage_verify_panel', stage_id=stage.id)
+
+
+    # === 2. ОДИНОЧНЫЕ ДЕЙСТВИЯ (Требуют конкретный объект и result_id) ===
+    
     result_id = request.POST.get('result_id')
     res = get_object_or_404(Result, pk=result_id, stage=stage) # ✅ БЕЗОПАСНО
 
@@ -409,7 +476,6 @@ def verify_results_backend(request, stage_id):
         new_penalty_raw = request.POST.get('new_penalty', '0')
         reason = request.POST.get('reason', 'Корректировка Главным судьей')
         
-        # ЗАЩИТА: Проверяем, что судья ввел именно число, заменяем запятые на точки
         try:
             new_penalty = abs(float(new_penalty_raw.replace(',', '.')))
         except ValueError:
@@ -421,7 +487,7 @@ def verify_results_backend(request, stage_id):
             old_value=res.penalty_value, new_value=new_penalty, comment=reason
         )
         res.penalty_value = new_penalty
-        res.is_verified = True # Автоматически подтверждаем при изменении
+        res.is_verified = True 
         res.save()
         
         AuditLog.objects.create(
@@ -563,6 +629,25 @@ def manage_stages(request, comp_id):
 def manage_participants(request, comp_id):
     competition = get_object_or_404(Competition, pk=comp_id)
     if request.method == 'POST':
+        # --- НОВОЕ: Обработка массового удаления ---
+        if request.POST.get('action') == 'delete_all':
+            participants_to_delete = competition.participants.all()
+            count = participants_to_delete.count()
+            if count > 0:
+                try:
+                    participants_to_delete.delete()
+                    AuditLog.objects.create(
+                        user=request.user, competition=competition, action="Массовое удаление",
+                        details=f"Организатор массово удалил ВСЕХ участников ({count} шт.) турнира."
+                    )
+                    messages.success(request, f"Все участники ({count} шт.) успешно удалены из базы.")
+                except ProtectedError:
+                    messages.error(request, "🛑 Ошибка: Невозможно удалить всех участников, так как у некоторых уже есть результаты! Сначала очистите протоколы этапов.")
+            else:
+                messages.info(request, "База участников уже пуста.")
+            return redirect('manage_participants', comp_id=competition.id)
+        # -------------------------------------------
+
         form = ParticipantForm(request.POST)
         if form.is_valid():
             participant = form.save(commit=False)
@@ -585,6 +670,23 @@ def manage_participants(request, comp_id):
 def manage_teams(request, comp_id):
     competition = get_object_or_404(Competition, pk=comp_id)
     if request.method == 'POST':
+
+        # --- НОВОЕ: Обработка массового расформирования команд ---
+        if request.POST.get('action') == 'delete_all':
+            teams_to_delete = competition.teams.all()
+            count = teams_to_delete.count()
+            if count > 0:
+                teams_to_delete.delete()
+                AuditLog.objects.create(
+                    user=request.user, competition=competition, action="Массовое удаление команд",
+                    details=f"Организатор расформировал ВСЕ команды ({count} шт.) турнира."
+                )
+                messages.success(request, f"Все команды ({count} шт.) успешно расформированы. Спортсмены остались в базе.")
+            else:
+                messages.info(request, "В турнире пока нет команд.")
+            return redirect('manage_teams', comp_id=competition.id)
+        # ---------------------------------------------------------
+
         form = TeamForm(request.POST)
         if form.is_valid():
             team = form.save(commit=False)
@@ -606,6 +708,23 @@ def manage_team_members(request, team_id):
     competition = team.competition
     
     if request.method == 'POST':
+        # --- НОВОЕ: Обработка массового исключения из команды ---
+        if request.POST.get('action') == 'delete_all':
+            members_to_delete = team.members.all()
+            count = members_to_delete.count()
+            if count > 0:
+                members_to_delete.delete()
+                AuditLog.objects.create(
+                    user=request.user, competition=competition, 
+                    action="Очистка состава команды", 
+                    details=f"Организатор удалил всех участников ({count} шт.) из команды «{team.team_name}»."
+                )
+                messages.success(request, f"Состав очищен. Все участники ({count} шт.) успешно исключены из команды.")
+            else:
+                messages.info(request, "В этой команде пока нет участников.")
+            return redirect('manage_team_members', team_id=team.id)
+        # --------------------------------------------------------
+
         form = TeamMemberForm(request.POST)
         if form.is_valid():
             member = form.save(commit=False)
@@ -613,10 +732,11 @@ def manage_team_members(request, team_id):
 
             # === ЗАЩИТА ОТ КРАЖИ УЧАСТНИКА В ЧУЖУЮ КОМАНДУ ===
             if member.participant.competition != competition:
-                return HttpResponseForbidden("Критическая ошибка: Этот спортсмен из другого турнира!")
+                messages.error(request, "🛑 Критическая ошибка: Этот спортсмен из другого турнира!")
+                return redirect('manage_team_members', team_id=team.id)
             # =================================================
             
-            # На всякий случай оставляем защиту бэкенда
+            # Защита от дублей
             if TeamMember.objects.filter(team__competition=competition, participant=member.participant).exists():
                 messages.error(request, 'Ошибка: Этот участник уже состоит в одной из команд!')
             else:
@@ -714,7 +834,7 @@ def edit_team(request, team_id):
 @login_required
 @organizer_required
 @owner_lock
-@require_POST
+@safe_require_POST
 @archive_lock
 def delete_competition(request, comp_id):
     comp = get_object_or_404(Competition, pk=comp_id)
@@ -739,7 +859,7 @@ def delete_competition(request, comp_id):
 @login_required
 @organizer_required
 @owner_lock
-@require_POST
+@safe_require_POST
 @archive_lock
 def delete_stage(request, stage_id):
     stage = get_object_or_404(Stage, pk=stage_id)
@@ -758,7 +878,7 @@ def delete_stage(request, stage_id):
 @login_required
 @organizer_required
 @owner_lock
-@require_POST
+@safe_require_POST
 @archive_lock
 def delete_participant(request, part_id):
     participant = get_object_or_404(Participant, pk=part_id)
@@ -777,7 +897,7 @@ def delete_participant(request, part_id):
 @login_required
 @organizer_required
 @owner_lock
-@require_POST
+@safe_require_POST
 @archive_lock
 def delete_team(request, team_id):
     team = get_object_or_404(Team, pk=team_id)
@@ -796,7 +916,7 @@ def delete_team(request, team_id):
 @login_required
 @organizer_required
 @owner_lock
-@require_POST
+@safe_require_POST
 @archive_lock
 def delete_team_member(request, member_id):
     member = get_object_or_404(TeamMember, pk=member_id)
@@ -1005,7 +1125,7 @@ def export_excel(request, comp_id):
 @login_required
 @organizer_required
 @owner_lock
-@require_POST
+@safe_require_POST
 def toggle_archive(request, comp_id):
     comp = get_object_or_404(Competition, id=comp_id)
     

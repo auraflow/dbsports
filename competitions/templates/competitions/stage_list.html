@@ -1,5 +1,5 @@
 {% extends "competitions/components/base.html" %}
-{% block title %}Выбор этапа | АСУ Соревнований{% endblock title %}
+{% block title %}Выбор этапа | Вега{% endblock title %}
 {% block content %}
     <div class="mb-3 no-print">
         <a href="{% url 'dashboard' %}"
@@ -7,7 +7,7 @@
     </div>
     <div class="card mb-4 border-primary">
         <div class="card-body py-4">
-            <h2 class="mb-2 text-primary">⏱️ Выбор этапа для судейства</h2>
+            <h2 class="mb-2 text-primary">Выбор этапа для судейства</h2>
             <p class="text-muted m-0">Выберите нужный этап из списка, чтобы начать фиксацию результатов.</p>
         </div>
     </div>
@@ -16,7 +16,7 @@
         {% for group in grouped_stages %}
             <div class="card mb-4 border-secondary shadow-sm">
                 <div class="card-header border-secondary py-3">
-                    <h4 class="text-warning m-0">🏆 {{ group.grouper.title }}</h4>
+                    <h4 class="text-warning m-0">{{ group.grouper.title }}</h4>
                 </div>
                 <div class="list-group list-group-flush">
                     {% for stage in group.list %}

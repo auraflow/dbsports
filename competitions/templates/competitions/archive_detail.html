@@ -3,25 +3,25 @@
 {% block content %}
     <div class="mb-3 no-print">
         <a href="{% url 'archive_list' %}"
-           class="btn btn-sm btn-outline-light smart-back">← Назад</a>
+           class="btn btn-sm btn-outline-light smart-back">Назад</a>
     </div>
-    <div class="card mb-4">
-        <div class="card-body py-4">
-            <h2 class="mb-2 text-warning">📁 Детали архива</h2>
-            <p class="text-muted m-0">
-                Соревнование: <strong class="text-light">{{ competition.title }}</strong>
+    <div class="card mb-4 border-0">
+        <div class="card-body py-4 px-4">
+            <h2 class="mb-3 text-info fw-bold">Детали архива</h2>
+            <p class="text-muted m-0 fs-5">
+                Соревнование: <strong class="text-white">{{ competition.title }}</strong>
                 <br>
-                Дата проведения: <span class="text-light">{{ competition.start_date|date:"d.m.Y" }}</span>
+                Дата проведения: <span class="text-white">{{ competition.start_date|date:"d.m.Y" }}</span>
             </p>
         </div>
     </div>
-    <div class="card">
-        <div class="card-body py-4">
-            <h4 class="mb-3">Сводная информация</h4>
-            <p class="text-muted">Это соревнование находится в архиве. Любые изменения данных заблокированы.</p>
+    <div class="card border-0">
+        <div class="card-body py-4 px-4">
+            <h4 class="mb-3 fw-bold">Сводная информация</h4>
+            <p class="text-warning mb-4 fw-bold">Это соревнование находится в архиве. Любые изменения данных заблокированы.</p>
             {% if stages %}
-                <div class="table-responsive mt-4">
-                    <table class="table table-borderless align-middle m-0">
+                <div class="table-responsive mt-2">
+                    <table class="table table-hover align-middle m-0">
                         <thead>
                             <tr>
                                 <th>Этап</th>
@@ -32,11 +32,11 @@
                         <tbody>
                             {% for stage in stages %}
                                 <tr>
-                                    <td class="fw-bold">{{ stage.name }}</td>
+                                    <td class="fw-bold text-white">{{ stage.name }}</td>
                                     <td class="text-muted">{{ stage.type.measure_unit }}</td>
                                     <td class="text-end">
-                                        <a href="{% url "stage_leaderboard" stage.id %}"
-                                           class="btn btn-sm btn-outline-light">Смотреть таблицу</a>
+                                        <a href="{% url 'stage_leaderboard' stage.id %}"
+                                           class="btn btn-sm btn-outline-light px-3">Смотреть таблицу</a>
                                     </td>
                                 </tr>
                             {% endfor %}
