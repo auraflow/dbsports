@@ -71,7 +71,7 @@
                             {% for res in results %}
                                 <tr>
                                     <td class="text-info fw-bold">{{ res.participant.bib_number|default:"" }}</td>
-                                    <td class="fw-bold text-white">{{ res.participant.full_name }}</td>
+                                    <td class="fw-bold text-white text-nowrap">{{ res.participant.full_name }}</td>
                                     <td class="text-muted">{{ res.judge.username }}</td>
                                     <td class="text-info fw-bold">{{ res.value }}</td>
                                     <td class="text-danger">{{ res.penalty_value|default:"0.000" }}</td>

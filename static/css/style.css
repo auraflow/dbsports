@@ -254,7 +254,8 @@ select option:checked, select option:hover {
 /* ================= ТАБЛИЦЫ ================= */
 .table-responsive {
     border-radius: var(--vega-radius-md);
-    overflow: hidden;
+    overflow-x: auto; /* ИСПРАВЛЕНО: было hidden, из-за чего ломался скролл */
+    -webkit-overflow-scrolling: touch; /* Для плавного скролла на телефонах */
 }
 
 .table { 
@@ -267,8 +268,9 @@ select option:checked, select option:hover {
     background-color: transparent !important; 
     color: var(--vega-text-main) !important; 
     border-bottom: 1px solid var(--vega-border); 
-    padding: 1.2rem 1rem !important;
+    padding: 0.7rem 1rem !important; /* ИСПРАВЛЕНО: уменьшили высоту ячеек (было 1.2rem) */
     vertical-align: middle;
+    font-size: 1.1rem; /* ИСПРАВЛЕНО: уменьшили размер шрифта внутри таблиц */
 }
 
 .table thead th { 
@@ -400,6 +402,40 @@ form p textarea::placeholder {
     opacity: 1; /* Обязательный фикс для Firefox, который по умолчанию делает плейсхолдеры полупрозрачными */
 }
 
+/* ================= ЗАМЕНА ЖЕЛТОГО (WARNING) НА СИНИЙ С НЕОНОМ ================= */
+
+/* Основной текст (добавили text-shadow для свечения) */
+.text-warning {
+    color: var(--vega-blue-glow) !important;
+    text-shadow: 0 0 4px rgba(56, 189, 248, 0.6) !important; 
+}
+
+/* Фоны (бейджи статусов) */
+.bg-warning {
+    background-color: var(--vega-blue-core) !important;
+    box-shadow: 0 0 6px rgba(14, 165, 233, 0.4) !important;
+}
+
+/* Рамки */
+.border-warning {
+    border-color: var(--vega-blue-glow) !important;
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.3) !important;
+}
+
+/* Кнопки */
+.btn-outline-warning {
+    color: var(--vega-blue-glow) !important;
+    border-color: var(--vega-blue-glow) !important;
+    text-shadow: 0 0 3px rgba(56, 189, 248, 0.5) !important;
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.2) inset, 0 0 8px rgba(56, 189, 248, 0.2) !important;
+}
+
+.btn-outline-warning:hover {
+    background-color: var(--vega-blue-glow) !important;
+    color: var(--vega-bg-dark) !important;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.6) !important;
+}
+
 /* ================= АНИМАЦИЯ ЛОГОТИПА "ВЕГА" (ЧИСТЫЙ БЕЛЫЙ + ИДЕАЛЬНАЯ ПЛАВНОСТЬ) ================= */
 
 /* 1. СЛОЙ-КОНТЕЙНЕР: отвечает ТОЛЬКО за 10-секундную напоминалку */
@@ -437,7 +473,7 @@ form p textarea::placeholder {
     filter: brightness(0) invert(1) 
             drop-shadow(-2px 2px 2px rgba(255, 255, 255, 0.5)) 
             drop-shadow(2px -2px 2px rgba(255, 255, 255, 0.5)) 
-            drop-shadow(0 0 20px rgba(255, 255, 255, 0.9));
+            drop-shadow(0 0 10px rgba(255, 255, 255, 0.9));
 }
 
 /* Вдавливание при клике/касании */
@@ -492,4 +528,21 @@ form p textarea::placeholder {
         filter: blur(0);
         text-shadow: 0 0 15px rgba(56, 189, 248, 0.6);
     }
+}
+
+/* ================= ОФЛАЙН-БАННЕР ================= */
+.offline-banner-card {
+    /* Полупрозрачный темный фон с легким синим оттенком (эффект стекла) */
+    background-color: rgba(14, 165, 233, 0.1) !important; 
+    border: 1px solid var(--vega-blue-core) !important;
+    box-shadow: 0 0 15px rgba(14, 165, 233, 0.15) !important;
+}
+
+.offline-banner-text {
+    color: var(--vega-text-main) !important; /* Основной текст делаем белым/светлым */
+}
+
+.offline-banner-highlight {
+    color: var(--vega-blue-glow) !important; /* Яркий акцент только для важных слов и цифр */
+    text-shadow: 0 0 8px rgba(56, 189, 248, 0.5) !important;
 }

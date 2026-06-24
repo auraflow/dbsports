@@ -87,7 +87,7 @@
                                     {% for part in participants %}
                                         <tr>
                                             <td class="text-info fw-bold">{{ part.bib_number|default:"-" }}</td>
-                                            <td class="fw-bold text-white">{{ part.full_name }}</td>
+                                            <td class="fw-bold text-white text-nowrap">{{ part.full_name }}</td>
                                             <td class="text-muted">{{ part.weight_kg|default:"-" }}</td>
                                             <td class="text-end">
                                                 <div class="d-flex justify-content-end gap-2">

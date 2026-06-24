@@ -169,7 +169,7 @@
 
                             if (this.classList.contains('btn-danger') || this.classList.contains('btn-outline-danger')) {
                                 confirmBtn.className = 'btn btn-danger px-4 shadow-sm';
-                                confirmBtn.textContent = 'Да, удалить';
+                                confirmBtn.textContent = 'Да';
                             } else {
                                 confirmBtn.className = 'btn btn-info text-dark fw-bold px-4 shadow-sm';
                                 confirmBtn.textContent = 'Выполнить';
@@ -318,5 +318,35 @@
                 });
             </script>
         {% endif %}
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                // =========================================================
+                // 1. ЗАЩИТА ОТ ПОВТОРНОЙ ОТПРАВКИ ФОРМ (ERR_CACHE_MISS)
+                // =========================================================
+                // Этот код заставляет браузер "забыть", что страница была загружена через форму.
+                // Он перезаписывает состояние POST в истории на безопасное состояние GET.
+                if (window.history.replaceState) {
+                    window.history.replaceState(null, null, window.location.href);
+                }
+
+                // =========================================================
+                // 2. ИСТИННАЯ НАВИГАЦИЯ ДЛЯ КНОПОК "НАЗАД"
+                // =========================================================
+                // Находим все твои кнопки с классом .smart-back
+                document.querySelectorAll('.smart-back').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        // Проверяем, пришел ли пользователь с другой страницы НАШЕГО сайта
+                        if (document.referrer && document.referrer.includes(window.location.host)) {
+                            // Если да, отменяем обычный переход по ссылке (чтобы не плодить историю)
+                            e.preventDefault();
+                            // И возвращаем его ровно на один шаг назад по системной истории браузера!
+                            window.history.back();
+                        }
+                        // Если он открыл страницу по прямой ссылке из мессенджера, 
+                        // скрипт ничего не сделает, и кнопка сработает как обычная ссылка (по href)
+                    });
+                });
+            });
+        </script>
     </body>
 </html>

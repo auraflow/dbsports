@@ -54,7 +54,7 @@
                                 <tbody>
                                     {% for team in teams %}
                                         <tr>
-                                            <td class="fw-bold">{{ team.team_name }}</td>
+                                            <td class="fw-bold text-nowrap">{{ team.team_name }}</td>
                                             <td class="text-end">
                                                 <div class="d-flex justify-content-end gap-2">
                                                     <a href="{% url "manage_team_members" team.id %}"

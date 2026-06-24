@@ -43,7 +43,7 @@
                                 <tbody>
                                     {% for judge in judges %}
                                         <tr>
-                                            <td class="fw-bold text-white">{{ judge.full_name }}</td>
+                                            <td class="fw-bold text-white text-nowrap">{{ judge.full_name }}</td>
                                             <td class="text-info">{{ judge.username }}</td>
                                             <td>
                                                 {% if judge.role.role_name == 'Главный судья' %}
