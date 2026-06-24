@@ -1,15 +1,21 @@
+{% load static %}
 <nav class="navbar border-bottom py-3 mb-4 shadow-sm">
     <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
         <a href="{% url 'dashboard' %}"
-           class="custom-label-vega navbar-brand text-info fw-bold m-0 text-decoration-none fs-2">Вега</a>
+           class="custom-label-vega navbar-brand my-0 ms-4 text-decoration-none">
+            <span class="navbar-star-wrapper">
+                <img src="{% static 'images/logo-vega.png' %}"
+                     alt="Вега"
+                     class="vega-logo-icon"
+                     width="65"
+                     height="65">
+            </span>
+        </a>
         <div class="d-flex align-items-center flex-wrap justify-content-end gap-3 ms-auto">
-            <div class="d-flex align-items-center gap-2 nav-island shadow-sm">
-                <div id="global-network-status"
-                     class="badge bg-success shadow-sm px-3 py-2 fs-6">Онлайн</div>
-                <button id="manual-cache-btn"
-                        class="btn btn-outline-light requires-network fw-bold"
-                        title="Скачать базу">Обновить базу</button>
-            </div>
+            <div id="global-network-status" class="shadow-sm px-3 py-2 fs-6">🟢</div>
+            <button id="manual-cache-btn"
+                    class="btn btn-outline-light requires-network fw-bold"
+                    title="Скачать базу">Обновить базу</button>
             {% if request.user.is_authenticated %}
                 <div class="d-flex align-items-center gap-3 nav-island shadow-sm">
                     <span class="text-info fw-bold fs-5 px-2">{{ request.user.username }}</span>

@@ -26,7 +26,7 @@
     </div>
     <div class="row g-4">
         <div class="col-md-4 mb-4">
-            <div class="card h-100 border-0 shadow-sm">
+            <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body px-4 py-4">
                     <h4 class="mb-4 text-white fw-bold">Регистрация</h4>
                     <form method="post" class="form-vega-wrapper">
@@ -34,6 +34,36 @@
                         {{ form.as_p }}
                         <button type="submit"
                                 class="btn btn-info w-100 mt-2 fw-bold shadow-sm requires-network">Зарегистрировать</button>
+                    </form>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body px-4 py-4">
+                    <h4 class="mb-4 text-white fw-bold">Массовая загрузка</h4>
+                    <form method="post" enctype="multipart/form-data" class="form-vega-wrapper">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="import_excel">
+                        <div class="mb-3">
+                            <label class="form-label mb-2">Файл Excel (.xlsx)</label>
+                            <input type="file"
+                                   name="import_file"
+                                   class="form-control bg-dark"
+                                   accept=".xlsx"
+                                   required>
+                            <div class="form-text text-muted small mt-2 lh-sm">
+                                <strong>Структура таблицы:</strong>
+                                <br>
+                                1 столбец: ФИО спортсмена
+                                <br>
+                                2 столбец: Номер (Бейджик)
+                                <br>
+                                3 столбец: Вес (если требуется)
+                                <br>
+                                <i>Первая строка (заголовки) игнорируется.</i>
+                            </div>
+                        </div>
+                        <button type="submit"
+                                class="btn btn-outline-warning w-100 mt-2 shadow-sm requires-network">Загрузить списком</button>
                     </form>
                 </div>
             </div>
@@ -49,6 +79,7 @@
                                     <tr>
                                         <th>№</th>
                                         <th>ФИО</th>
+                                        <th>Вес (кг)</th>
                                         <th class="text-end">Действие</th>
                                     </tr>
                                 </thead>
@@ -56,7 +87,8 @@
                                     {% for part in participants %}
                                         <tr>
                                             <td class="text-info fw-bold">{{ part.bib_number|default:"-" }}</td>
-                                            <td class="fw-bold text-white">{{ part.full_name }}</td>
+                                            <td class="fw-bold text-white text-nowrap">{{ part.full_name }}</td>
+                                            <td class="text-muted">{{ part.weight_kg|default:"-" }}</td>
                                             <td class="text-end">
                                                 <div class="d-flex justify-content-end gap-2">
                                                     <a href="{% url 'edit_participant' part.id %}"

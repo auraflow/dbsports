@@ -35,6 +35,10 @@ urlpatterns = [
     path('organizer/competitions/create/', views.create_competition, name='create_competition'),
     path('organizer/competitions/<int:comp_id>/edit/', views.edit_competition, name='edit_competition'),
     path('organizer/competitions/<int:comp_id>/participants/', views.manage_participants, name='manage_participants'),
+    path('organizer/competitions/', views.organizer_competitions, name='organizer_competitions'),
+    path('organizer/judges/', views.manage_judges, name='manage_judges'),
+    path('organizer/judges/<int:judge_id>/edit/', views.edit_judge, name='edit_judge'),
+    path('organizer/judges/<int:judge_id>/delete/', views.delete_judge, name='delete_judge'),
 
     # Маршруты верификации для Главного судьи
     path('chief/stages/', views.chief_stage_list, name='chief_stage_list'),

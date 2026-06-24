@@ -31,7 +31,7 @@
                                     {% for row in individual_summary %}
                                         <tr>
                                             <td class="fw-bold">{{ row.place }}</td>
-                                            <td class="fw-bold">{{ row.participant.full_name }}</td>
+                                            <td class="fw-bold text-nowrap">{{ row.participant.full_name }}</td>
                                             <td class="text-danger">{{ row.total_penalty|default:"0.000" }}</td>
                                             <td class="text-end fw-bold text-success">
                                                 {% if row.has_results %}

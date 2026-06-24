@@ -25,9 +25,9 @@
     --vega-yellow: #fbbf24;         
 
     /* Геометрия и тени */
-    --vega-radius-lg: 20px;         
-    --vega-radius-md: 12px;         
-    --vega-radius-sm: 8px;          
+    --vega-radius-lg: 8px;         
+    --vega-radius-md: 4px;         
+    --vega-radius-sm: 2px;        
     --vega-shadow-soft: 0 10px 25px rgba(0, 0, 0, 0.2);
     --vega-shadow-glow: 0 0 15px rgba(14, 165, 233, 0.4);
     --vega-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -102,7 +102,7 @@ a:hover { color: var(--vega-blue-glow); text-shadow: 0 0 8px rgba(56, 189, 248, 
     border-radius: var(--vega-radius-lg) !important;
     box-shadow: var(--vega-shadow-soft);
     transition: var(--vega-transition);
-    overflow: hidden; 
+    /* overflow: hidden; Убрали, чтобы выпадающие меню не обрезались */
 }
 
 .card:hover {
@@ -110,9 +110,18 @@ a:hover { color: var(--vega-blue-glow); text-shadow: 0 0 8px rgba(56, 189, 248, 
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
 }
 
-.card-header, .card-footer {
+.card-header {
     background-color: rgba(0, 0, 0, 0.1) !important;
-    border-color: var(--vega-border) !important;
+    border-bottom: 1px solid var(--vega-border) !important;
+    border-top-left-radius: calc(var(--vega-radius-lg) - 1px) !important;
+    border-top-right-radius: calc(var(--vega-radius-lg) - 1px) !important;
+}
+
+.card-footer {
+    background-color: rgba(0, 0, 0, 0.1) !important;
+    border-top: 1px solid var(--vega-border) !important;
+    border-bottom-left-radius: calc(var(--vega-radius-lg) - 1px) !important;
+    border-bottom-right-radius: calc(var(--vega-radius-lg) - 1px) !important;
 }
 
 /* ================= NAVBAR И FOOTER (GLASSMORPHISM) ================= */
@@ -131,50 +140,49 @@ footer {
     margin-top: auto !important; /* Гарантирует прилипание к низу */
 }
 
-/* ================= ЭЛЕМЕНТЫ УПРАВЛЕНИЯ (КНОПКИ) ================= */
+/* ================= ЭЛЕМЕНТЫ УПРАВЛЕНИЯ (ЕДИНЫЙ ДИЗАЙН КНОПОК) ================= */
 .btn {
     border-radius: var(--vega-radius-md) !important;
     font-weight: 600;
     padding: 0.6rem 1.2rem;
-    transition: var(--vega-transition);
+    transition: all 0.3s ease;
     letter-spacing: 0.5px;
 }
 
-.btn:hover { 
-    transform: translateY(-2px); /* Плавное поднятие для ВСЕХ кнопок при наведении */
-}
+/* Мягкое вдавливание при клике (без подпрыгивания верстки) */
 .btn:active { 
-    transform: scale(0.97) translateY(0); /* Эффект "нажатия" внутрь экрана */
+    transform: scale(0.97); 
 }
 
-.btn-primary, .btn-info {
-    background: linear-gradient(135deg, var(--vega-blue-core), var(--vega-purple));
-    border: none !important;
-    color: #fff !important;
-    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
-}
-.btn-primary:hover, .btn-info:hover {
-    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
-    transform: translateY(-2px);
+/* ЕДИНЫЙ БАЗОВЫЙ СТИЛЬ (Для всех позитивных/нейтральных действий на сайте) */
+.btn-primary, .btn-info, .btn-success, .btn-warning,
+.btn-outline-light, .btn-outline-warning, .btn-outline-success {
+    background-color: rgba(14, 165, 233, 0.1) !important; /* Легкая тонировка */
+    border: 2px solid var(--vega-blue-core) !important; /* Строгий синий контур */
+    color: var(--vega-text-main) !important; /* Светлый текст */
+    box-shadow: 0 4px 15px rgba(14, 165, 233, 0.05);
 }
 
-.btn-success { background-color: var(--vega-green); border-color: var(--vega-green); color: #000; }
-.btn-success:hover { background-color: #059669; color: #fff; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); }
+/* ВЫСОКИЙ КОНТРАСТ ПРИ НАВЕДЕНИИ МЫШИ */
+.btn-primary:hover, .btn-info:hover, .btn-success:hover, .btn-warning:hover,
+.btn-outline-light:hover, .btn-outline-warning:hover, .btn-outline-success:hover {
+    background-color: var(--vega-blue-glow) !important; /* Заливка ярким неоном */
+    border-color: var(--vega-blue-glow) !important;
+    color: #090e17 !important; /* Темный текст для максимальной читаемости */
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
+}
 
-.btn-warning { background-color: var(--vega-yellow); border-color: var(--vega-yellow); color: #000; }
-.btn-warning:hover { background-color: #d97706; color: #fff; box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4); }
-
-.btn-outline-light { border: 2px solid var(--vega-border); color: var(--vega-text-muted); background: transparent; }
-.btn-outline-light:hover { border-color: var(--vega-text-main); color: var(--vega-bg-dark); background: var(--vega-text-main); }
-
-.btn-outline-success { border: 2px solid var(--vega-green); color: var(--vega-green); background: transparent; }
-.btn-outline-success:hover { background-color: var(--vega-green); color: #000; box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
-
-.btn-outline-warning { border: 2px solid var(--vega-yellow); color: var(--vega-yellow); background: transparent; }
-.btn-outline-warning:hover { background-color: var(--vega-yellow); color: #000; box-shadow: 0 0 15px rgba(251, 191, 36, 0.3); }
-
-.btn-danger, .btn-outline-danger { border: 2px solid var(--vega-red); color: var(--vega-red); background: transparent; }
-.btn-danger:hover, .btn-outline-danger:hover { background-color: var(--vega-red); color: #fff; box-shadow: 0 0 15px rgba(244, 63, 94, 0.4); }
+/* КНОПКИ УДАЛЕНИЯ И ВЫХОДА (Опасные действия оставляем красными) */
+.btn-danger, .btn-outline-danger { 
+    background-color: rgba(244, 63, 94, 0.1) !important; 
+    border: 2px solid var(--vega-red) !important; 
+    color: var(--vega-text-main) !important; 
+}
+.btn-danger:hover, .btn-outline-danger:hover { 
+    background-color: var(--vega-red) !important; 
+    color: #090e17 !important; 
+    box-shadow: 0 0 20px rgba(244, 63, 94, 0.6); 
+}
 
 /* ================= ФОРМЫ (INPUTS) ================= */
 .form-control, .form-select {
@@ -246,7 +254,8 @@ select option:checked, select option:hover {
 /* ================= ТАБЛИЦЫ ================= */
 .table-responsive {
     border-radius: var(--vega-radius-md);
-    overflow: hidden;
+    overflow-x: auto; /* ИСПРАВЛЕНО: было hidden, из-за чего ломался скролл */
+    -webkit-overflow-scrolling: touch; /* Для плавного скролла на телефонах */
 }
 
 .table { 
@@ -259,8 +268,9 @@ select option:checked, select option:hover {
     background-color: transparent !important; 
     color: var(--vega-text-main) !important; 
     border-bottom: 1px solid var(--vega-border); 
-    padding: 1.2rem 1rem !important;
+    padding: 0.7rem 1rem !important; /* ИСПРАВЛЕНО: уменьшили высоту ячеек (было 1.2rem) */
     vertical-align: middle;
+    font-size: 1.1rem; /* ИСПРАВЛЕНО: уменьшили размер шрифта внутри таблиц */
 }
 
 .table thead th { 
@@ -381,4 +391,158 @@ form p input[type="checkbox"] {
     accent-color: var(--vega-blue-core);
     margin-right: 0.5rem;
     vertical-align: middle;
+}
+
+/* Делаем подсказки внутри полей (плейсхолдеры) светлее и читаемее */
+.form-control::placeholder,
+.form-select::placeholder,
+form p input::placeholder,
+form p textarea::placeholder {
+    color: rgba(148, 163, 184, 0.8) !important; /* Цвет var(--vega-text-muted), но чуть ярче */
+    opacity: 1; /* Обязательный фикс для Firefox, который по умолчанию делает плейсхолдеры полупрозрачными */
+}
+
+/* ================= ЗАМЕНА ЖЕЛТОГО (WARNING) НА СИНИЙ С НЕОНОМ ================= */
+
+/* Основной текст (добавили text-shadow для свечения) */
+.text-warning {
+    color: var(--vega-blue-glow) !important;
+    text-shadow: 0 0 4px rgba(56, 189, 248, 0.6) !important; 
+}
+
+/* Фоны (бейджи статусов) */
+.bg-warning {
+    background-color: var(--vega-blue-core) !important;
+    box-shadow: 0 0 6px rgba(14, 165, 233, 0.4) !important;
+}
+
+/* Рамки */
+.border-warning {
+    border-color: var(--vega-blue-glow) !important;
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.3) !important;
+}
+
+/* Кнопки */
+.btn-outline-warning {
+    color: var(--vega-blue-glow) !important;
+    border-color: var(--vega-blue-glow) !important;
+    text-shadow: 0 0 3px rgba(56, 189, 248, 0.5) !important;
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.2) inset, 0 0 8px rgba(56, 189, 248, 0.2) !important;
+}
+
+.btn-outline-warning:hover {
+    background-color: var(--vega-blue-glow) !important;
+    color: var(--vega-bg-dark) !important;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.6) !important;
+}
+
+/* ================= АНИМАЦИЯ ЛОГОТИПА "ВЕГА" (ЧИСТЫЙ БЕЛЫЙ + ИДЕАЛЬНАЯ ПЛАВНОСТЬ) ================= */
+
+/* 1. СЛОЙ-КОНТЕЙНЕР: отвечает ТОЛЬКО за 10-секундную напоминалку */
+.custom-label-vega {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Добавили ease-in-out для максимально мягкого старта и торможения таймера */
+    animation: periodic-pulse 10s ease-in-out infinite;
+    transform-origin: center;
+}
+
+/* При наведении отключаем таймер контейнера, чтобы не мешал */
+.custom-label-vega:hover {
+    animation: none; 
+}
+
+/* 2. СЛОЙ-ИКОНКА: отвечает ТОЛЬКО за базовый вид и плавный :hover */
+.vega-logo-icon {
+    height: 65px;
+    width: auto;
+    
+    /* Базовый белый цвет и мягкое белое свечение */
+    filter: brightness(0) invert(1) drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+    
+    /* Пружинистая анимация */
+    transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: center;
+    transform: scale(1) rotate(0deg) translate(0, 0);
+}
+
+/* Плавный ховер: белые ореолы и сильное свечение */
+.custom-label-vega:hover .vega-logo-icon {
+    transform: scale(1.15) rotate(18deg) translate(4px, -4px);
+    filter: brightness(0) invert(1) 
+            drop-shadow(-2px 2px 2px rgba(255, 255, 255, 0.5)) 
+            drop-shadow(2px -2px 2px rgba(255, 255, 255, 0.5)) 
+            drop-shadow(0 0 10px rgba(255, 255, 255, 0.9));
+}
+
+/* Вдавливание при клике/касании */
+.custom-label-vega:active .vega-logo-icon {
+    transform: scale(0.95) rotate(0deg) translate(0, 0);
+    filter: brightness(0) invert(1) drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
+    transition: all 0.1s; 
+}
+
+/* 3. КЛЮЧЕВЫЕ КАДРЫ ТАЙМЕРА (Плавное "дыхание" белого цвета) */
+@keyframes periodic-pulse {
+    0%, 75%, 100% {
+        /* Звезда неподвижна 75% времени */
+        transform: scale(1) rotate(0deg) translate(0, 0);
+        filter: drop-shadow(0 0 0 transparent);
+    }
+    87.5% {
+        /* Пик: звезда плавно вылетает и расщепляется на белые ореолы */
+        transform: scale(1.2) rotate(15deg) translate(3px, -3px);
+        filter: drop-shadow(-2px 2px 2px rgba(255, 255, 255, 0.6)) 
+                drop-shadow(2px -2px 2px rgba(255, 255, 255, 0.6));
+    }
+}
+
+/* ================= АНИМАЦИЯ ЗАГОЛОВКА "ДОСТУПНЫЕ МОДУЛИ" ================= */
+.ticker-wrapper {
+    width: 100%;
+    overflow: hidden; 
+    text-align: center; 
+}
+
+.ticker-title {
+    display: inline-block;
+    opacity: 0; /* Скрыто до начала анимации */
+    
+    /* Анимация проигрывается ТОЛЬКО 1 раз при загрузке. 
+       Свойство forwards оставляет элемент в финальном кадре */
+    animation: cyber-entrance 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes cyber-entrance {
+    0% {
+        /* Текст размыт, наклонен и находится за левым краем экрана */
+        transform: translateX(-150px) skewX(-20deg);
+        opacity: 0;
+        filter: blur(8px);
+    }
+    100% {
+        /* Текст встает на свое место ровно и красиво светится */
+        transform: translateX(0) skewX(0);
+        opacity: 1;
+        filter: blur(0);
+        text-shadow: 0 0 15px rgba(56, 189, 248, 0.6);
+    }
+}
+
+/* ================= ОФЛАЙН-БАННЕР ================= */
+.offline-banner-card {
+    /* Полупрозрачный темный фон с легким синим оттенком (эффект стекла) */
+    background-color: rgba(14, 165, 233, 0.1) !important; 
+    border: 1px solid var(--vega-blue-core) !important;
+    box-shadow: 0 0 15px rgba(14, 165, 233, 0.15) !important;
+}
+
+.offline-banner-text {
+    color: var(--vega-text-main) !important; /* Основной текст делаем белым/светлым */
+}
+
+.offline-banner-highlight {
+    color: var(--vega-blue-glow) !important; /* Яркий акцент только для важных слов и цифр */
+    text-shadow: 0 0 8px rgba(56, 189, 248, 0.5) !important;
 }

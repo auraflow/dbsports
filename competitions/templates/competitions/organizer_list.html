@@ -46,7 +46,7 @@
                                             {% csrf_token %}
                                             <button type="submit"
                                                     class="btn btn-sm btn-danger requires-network"
-                                                    onclick="return confirm('Вы уверены, что хотите безвозвратно удалить соревнование?');">
+                                                    data-vega-confirm="Вы уверены, что хотите безвозвратно удалить соревнование?">
                                                 Удалить
                                             </button>
                                         </form>

@@ -17,11 +17,14 @@
         </div>
     </div>
     <div id="offline-sync-banner"
-         class="card border-warning border-opacity-50 mb-4 d-none shadow-sm"
+         class="card mb-4 d-none shadow-sm offline-banner-card"
          role="alert">
-        <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3 bg-warning bg-opacity-10 rounded">
-            <span class="text-warning">
-                <strong class="fw-bold">Автономный режим:</strong> Найдено <span id="local-records-count" class="fw-bold fs-5 text-white">0</span> результатов, сохраненных локально. Они будут отправлены в базу автоматически при восстановлении сети.
+        <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3 rounded">
+            <span class="offline-banner-text m-0">
+                <strong class="fw-bold offline-banner-highlight">Автономный режим:</strong> Найдено
+                <span id="local-records-count"
+                      class="fw-bold fs-5 offline-banner-highlight px-1">0</span>
+                результатов, сохраненных локально. Они будут отправлены в базу автоматически при восстановлении сети.
             </span>
             <div>
                 <button id="export-backup-btn"
@@ -41,7 +44,11 @@
                             <select name="participant" class="form-select" id="id_participant" required>
                                 <option value="" selected disabled>-- Выберите спортсмена --</option>
                                 {% for p in participants %}
-                                    <option value="{{ p.id }}">{{ p.full_name }} (№{{ p.bib_number }})</option>
+                                    <option value="{{ p.id }}"
+                                            data-name="{{ p.full_name }}"
+                                            data-bib="{{ p.bib_number|default:'-' }}">
+                                        {{ p.full_name }} (№{{ p.bib_number|default:'-' }})
+                                    </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -82,7 +89,8 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th class="ps-3 py-3">Спортсмен</th>
+                                    <th class="ps-3 py-3">№</th>
+                                    <th class="py-3">Спортсмен</th>
                                     <th class="py-3">Результат</th>
                                     <th class="py-3">Штраф</th>
                                     <th class="py-3">Примечание</th>
@@ -92,9 +100,9 @@
                             <tbody>
                                 {% for r in results %}
                                     <tr>
-                                        <td class="ps-3">
+                                        <td class="ps-3 text-warning fw-bold">{{ r.participant.bib_number|default:"-" }}</td>
+                                        <td class="text-nowrap">
                                             <span class="text-white fw-bold">{{ r.participant.full_name }}</span>
-                                            <span class="text-muted ms-1 small">№{{ r.participant.bib_number }}</span>
                                         </td>
                                         <td class="fw-bold text-info fs-5">{{ r.value }}</td>
                                         <td class="text-danger fw-bold">{{ r.penalty_value|default:"0.000" }}</td>
@@ -113,7 +121,7 @@
                                     </tr>
                                 {% empty %}
                                     <tr id="empty-table-row">
-                                        <td colspan="5" class="text-center text-muted py-5">
+                                        <td colspan="6" class="text-center text-muted py-5">
                                             <div class="fs-5 mb-2">Нет данных</div>
                                             <p class="m-0 small">Ожидание ввода первых результатов этапа</p>
                                         </td>
@@ -128,7 +136,8 @@
     </div>
     <template id="new-row-template">
         <tr>
-            <td class="ps-3">
+            <td class="ps-3 text-warning fw-bold js-bib"></td>
+            <td class="text-nowrap">
                 <span class="js-name text-white fw-bold"></span>
             </td>
             <td class="fw-bold text-info fs-5 js-val"></td>
@@ -162,10 +171,11 @@
             return cookieValue;
         }
 
-        function renderResultRow(pName, val, pen, comm, isOffline = false) {
+        function renderResultRow(pBib, pName, val, pen, comm, isOffline = false) {
             const template = document.getElementById("new-row-template");
             const clone = template.content.cloneNode(true);
 
+            clone.querySelector(".js-bib").textContent = pBib;
             clone.querySelector(".js-name").textContent = pName;
             clone.querySelector(".js-val").textContent = val;
             clone.querySelector(".js-pen").textContent = pen;
@@ -185,7 +195,6 @@
             }
 
             document.querySelector("table tbody").prepend(clone);
-
             const emptyRow = document.getElementById("empty-table-row");
             if (emptyRow) emptyRow.remove();
         }
@@ -245,21 +254,25 @@
             e.preventDefault();
 
             const participantSelect = document.getElementById("id_participant");
-            const pId = participantSelect.value;
             const selectedIndex = participantSelect.selectedIndex;
+            const pId = participantSelect.value;
 
             if (!pId) return;
 
-            const pName = participantSelect.options[selectedIndex].text;
+            const optionEl = participantSelect.options[selectedIndex];
+            const pName = optionEl.getAttribute("data-name");
+            const pBib = optionEl.getAttribute("data-bib");
+
             const val = document.getElementById("id_value").value;
             const pen = document.getElementById("id_penalty_value").value || "0.000";
             const comm = document.getElementById("id_comment").value || "";
 
             if (navigator.onLine) {
-                sendDataToServer(pId, pName, val, pen, comm, selectedIndex);
+                sendDataToServer(pId, pBib, pName, val, pen, comm, selectedIndex);
             } else {
                 addRecordToStorage({
                     participantId: pId,
+                    participantBib: pBib,
                     participantName: pName,
                     value: val,
                     penalty_value: pen,
@@ -267,12 +280,12 @@
                     timestamp: new Date().getTime()
                 });
                 participantSelect.remove(selectedIndex);
-                renderResultRow(pName, val, pen, comm, true);
+                renderResultRow(pBib, pName, val, pen, comm, true);
                 resetForm();
             }
         });
 
-        function sendDataToServer(pId, pName, val, pen, comm, selectedIndex) {
+        function sendDataToServer(pId, pBib, pName, val, pen, comm, selectedIndex) {
             const formData = new FormData();
             formData.append("participant", pId);
             formData.append("value", val);
@@ -292,7 +305,7 @@
                         if (selectedIndex !== undefined) {
                             const participantSelect = document.getElementById("id_participant");
                             participantSelect.remove(selectedIndex);
-                            renderResultRow(pName, val, pen, comm, false);
+                            renderResultRow(pBib, pName, val, pen, comm, false);
                             resetForm();
                         }
                         removeRecordFromStorage(pId);
@@ -305,6 +318,7 @@
                     if (selectedIndex !== undefined) {
                         addRecordToStorage({
                             participantId: pId,
+                            participantBib: pBib,
                             participantName: pName,
                             value: val,
                             penalty_value: pen,
@@ -313,7 +327,7 @@
                         });
                         const participantSelect = document.getElementById("id_participant");
                         participantSelect.remove(selectedIndex);
-                        renderResultRow(pName, val, pen, comm, true);
+                        renderResultRow(pBib, pName, val, pen, comm, true);
                         resetForm();
                     }
                 });
@@ -328,7 +342,7 @@
             let chain = Promise.resolve();
             records.forEach(r => {
                 chain = chain.then(() => {
-                    return sendDataToServer(r.participantId, r.participantName, r.value, r.penalty_value, r.comment, undefined);
+                    return sendDataToServer(r.participantId, r.participantBib, r.participantName, r.value, r.penalty_value, r.comment, undefined);
                 });
             });
 
@@ -368,7 +382,7 @@
                         }
                     }
                 }
-                renderResultRow(r.participantName, r.value, r.penalty_value, r.comment, true);
+                renderResultRow(r.participantBib, r.participantName, r.value, r.penalty_value, r.comment, true);
             });
         }
 
@@ -392,6 +406,16 @@
         });
 
         renderOfflineBanner();
-        document.addEventListener("DOMContentLoaded", restoreOfflineUI);
+        document.addEventListener("DOMContentLoaded", () => {
+            // 1. Сначала отрисовываем то, что застряло в локальном кэше (желтые плашки)
+            restoreOfflineUI();
+
+            // 2. Если интернет УЖЕ есть при открытии страницы — сразу запускаем тихую отправку
+            if (navigator.onLine && getLocalRecords().length > 0) {
+                console.log("Обнаружено подключение при загрузке. Отправляем зависшие данные...");
+                // Даем небольшую задержку (500мс), чтобы интерфейс успел прогрузиться без зависаний
+                setTimeout(syncOfflineData, 500);
+            }
+        });
     </script>
 {% endblock content %}

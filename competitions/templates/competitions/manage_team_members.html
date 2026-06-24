@@ -56,7 +56,7 @@
                                     {% for member in members %}
                                         <tr>
                                             <td class="text-warning fw-bold">{{ member.participant.bib_number|default:"-" }}</td>
-                                            <td class="fw-bold">{{ member.participant.full_name }}</td>
+                                            <td class="fw-bold text-nowrap">{{ member.participant.full_name }}</td>
                                             <td class="text-end">
                                                 <form action="{% url 'delete_team_member' member.id %}"
                                                       method="post"
