@@ -64,11 +64,11 @@
                 function applyNetworkState(isOffline) {
                     if (globalNetBadge) {
                         if (isOffline) {
-                            globalNetBadge.className = "badge bg-danger shadow-sm p-2";
-                            globalNetBadge.innerText = "Офлайн";
+                            globalNetBadge.className = "shadow-sm p-2";
+                            globalNetBadge.innerText = "🔴";
                         } else {
-                            globalNetBadge.className = "badge bg-success shadow-sm p-2";
-                            globalNetBadge.innerText = "Онлайн";
+                            globalNetBadge.className = "shadow-sm p-2";
+                            globalNetBadge.innerText = "🟢";
                         }
                     }
 

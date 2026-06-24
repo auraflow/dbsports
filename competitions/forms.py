@@ -78,19 +78,27 @@ class CompetitionForm(forms.ModelForm):
 class ParticipantForm(forms.ModelForm):
     class Meta:
         model = Participant
-        fields = ['full_name', 'bib_number']
+        # ДОБАВИЛИ weight_kg в список выводимых полей
+        fields = ['full_name', 'bib_number', 'weight_kg']
+        
+        # ДОБАВЛЕНО: Явно указываем красивые русские названия для ярлыков формы
+        labels = {
+            'full_name': 'ФИО спортсмена',
+            'bib_number': 'Стартовый номер',
+            'weight_kg': 'Собственный вес (кг)',
+        }
+        
         widgets = {
             'full_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ФИО спортсмена'}),
             'bib_number': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Стартовый номер'}),
+            # Настроили красивый ввод для веса (разрешаем десятичные дроби)
+            'weight_kg': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'Например: 75.50 (необязательно)'}),
         }
 
-    # ЗАЩИТА: Очистка стартового номера и защита от ошибки IntegrityError
     def clean_bib_number(self):
         bib = self.cleaned_data.get('bib_number')
-        # Если номер не ввели (пустая строка), возвращаем строго None (NULL для БД)
         if not bib or str(bib).strip() == "":
             return None
-            
         return str(bib).strip()
 
 class StageForm(forms.ModelForm):
@@ -218,3 +226,64 @@ class TeamMemberForm(forms.ModelForm):
         widgets = {
             'participant': forms.Select(attrs={'class': 'form-select'}),
         }
+
+
+class JudgeCreationForm(forms.ModelForm):
+    # Явно добавляем поле пароля, чтобы оно скрывало символы при вводе
+    password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Придумайте пароль'}), label="Пароль")
+
+    class Meta:
+        model = User
+        fields = ['username', 'full_name', 'role', 'password']
+        labels = {
+            'username': 'Логин (для входа)',
+            'full_name': 'ФИО судьи',
+            'role': 'Уровень доступа',
+        }
+        help_texts = {
+            'username': 'Разрешены только латинские буквы, цифры и символы: @ \ . \ + \ - \ _ (без пробелов).',
+        }
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Например: judge_ivanov'}),
+            'full_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Иванов Иван Иванович'}),
+            'role': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models import Role
+        # ОГРАНИЧЕНИЕ: Организатор может создавать ТОЛЬКО судей
+        self.fields['role'].queryset = Role.objects.filter(role_name__in=['Судья', 'Главный судья'])
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        # Обязательно хэшируем пароль перед сохранением в БД!
+        user.set_password(self.cleaned_data['password'])
+        if commit:
+            user.save()
+        return user
+    
+
+class JudgeEditForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['username', 'full_name', 'role']
+        labels = {
+            'username': 'Логин',
+            'full_name': 'ФИО судьи',
+            'role': 'Уровень доступа',
+        }
+        help_texts = {
+            'username': 'Разрешены только латинские буквы, цифры и символы: @ \ . \ + \ - \ _ (без пробелов).',
+        }
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+            'full_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'role': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models import Role
+        # Защита: нельзя случайно выдать судье роль Организатора при редактировании
+        self.fields['role'].queryset = Role.objects.filter(role_name__in=['Судья', 'Главный судья'])

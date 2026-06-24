@@ -15,8 +15,9 @@ from .models import (
     Participant, ResultLog, AuditLog, Role
 )
 from .forms import (
-    CompetitionForm, ParticipantForm, StageForm, 
-    TeamForm, TeamMemberForm, ResultForm
+    CompetitionForm, ParticipantForm, StageForm,    
+    TeamForm, TeamMemberForm, ResultForm, JudgeCreationForm,
+    JudgeEditForm
 )
 from .services import calculate_stage_standings
 
@@ -544,6 +545,80 @@ def organizer_competitions(request):
 
 @login_required
 @organizer_required
+def manage_judges(request):
+    """Интерфейс создания судей для Организатора"""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    if request.method == 'POST':
+        form = JudgeCreationForm(request.POST)
+        if form.is_valid():
+            new_user = form.save()
+            AuditLog.objects.create(
+                user=request.user, competition=None, action="Создание аккаунта",
+                details=f"Организатор создал аккаунт: {new_user.full_name} ({new_user.role.role_name})."
+            )
+            messages.success(request, f"Аккаунт {new_user.username} успешно создан!")
+            return redirect('manage_judges')
+    else:
+        form = JudgeCreationForm()
+
+    # Получаем список всех судей в системе для таблицы
+    judges = User.objects.filter(role__role_name__in=['Судья', 'Главный судья']).select_related('role').order_by('full_name')
+    
+    return render(request, 'competitions/manage_judges.html', {'form': form, 'judges': judges})
+
+@login_required
+@organizer_required
+def edit_judge(request, judge_id):
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    # СУПЕР-ЗАЩИТА (IDOR): Разрешаем получить только пользователя с ролью Судьи. 
+    # Организатор физически не сможет по ссылке отредактировать Админа или другого Организатора
+    judge = get_object_or_404(User, pk=judge_id, role__role_name__in=['Судья', 'Главный судья'])
+    
+    if request.method == 'POST':
+        form = JudgeEditForm(request.POST, instance=judge)
+        if form.is_valid():
+            form.save()
+            AuditLog.objects.create(
+                user=request.user, competition=None, action="Редактирование аккаунта",
+                details=f"Организатор изменил данные судьи {judge.full_name}."
+            )
+            messages.success(request, f"Данные судьи {judge.full_name} успешно обновлены.")
+            return redirect('manage_judges')
+    else:
+        form = JudgeEditForm(instance=judge)
+        
+    # Переиспользуем твой отличный универсальный шаблон
+    return render(request, 'competitions/generic_edit.html', {'form': form, 'title': 'Редактирование судьи'})
+
+@login_required
+@organizer_required
+@safe_require_POST
+def delete_judge(request, judge_id):
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    judge = get_object_or_404(User, pk=judge_id, role__role_name__in=['Судья', 'Главный судья'])
+    judge_name = judge.full_name
+    
+    try:
+        judge.delete()
+        AuditLog.objects.create(
+            user=request.user, competition=None, action="Удаление аккаунта",
+            details=f"Организатор навсегда удалил судью {judge_name} из системы."
+        )
+        messages.success(request, f"Аккаунт {judge_name} успешно удален.")
+    except ProtectedError:
+        # ЗАЩИТА БАЗЫ: Если судья уже ввел хоть один результат, БД не даст его удалить (сработает on_delete=PROTECT)
+        messages.error(request, f"Невозможно удалить {judge_name}, так как в системе хранятся зафиксированные им результаты этапов!")
+        
+    return redirect('manage_judges')
+
+@login_required
+@organizer_required
 @owner_lock
 @archive_lock
 def competition_panel(request, comp_id):
@@ -647,8 +722,10 @@ def manage_stages(request, comp_id):
 def manage_participants(request, comp_id):
     competition = get_object_or_404(Competition, pk=comp_id)
     if request.method == 'POST':
-        # --- НОВОЕ: Обработка массового удаления ---
-        if request.POST.get('action') == 'delete_all':
+        action = request.POST.get('action')
+
+        # --- 1. МАССОВОЕ УДАЛЕНИЕ ---
+        if action == 'delete_all':
             participants_to_delete = competition.participants.all()
             count = participants_to_delete.count()
             if count > 0:
@@ -664,20 +741,90 @@ def manage_participants(request, comp_id):
             else:
                 messages.info(request, "База участников уже пуста.")
             return redirect('manage_participants', comp_id=competition.id)
-        # -------------------------------------------
 
-        form = ParticipantForm(request.POST)
-        if form.is_valid():
-            participant = form.save(commit=False)
-            participant.competition = competition
-            participant.save()
-            AuditLog.objects.create(
-                user=request.user, competition=competition, action="Добавление участника",
-                details=f"Зарегистрирован: {participant.full_name} (Бейдж: {participant.bib_number})."
-            )
+        # --- 2. МАССОВЫЙ ИМПОРТ ИЗ EXCEL ---
+        elif action == 'import_excel':
+            if 'import_file' not in request.FILES:
+                messages.error(request, "Файл не выбран.")
+                return redirect('manage_participants', comp_id=competition.id)
+
+            file = request.FILES['import_file']
+            if not file.name.lower().endswith('.xlsx'):
+                messages.error(request, "Неподдерживаемый формат файла. Пожалуйста, загрузите файл Excel (.xlsx).")
+                return redirect('manage_participants', comp_id=competition.id)
+
+            try:
+                wb = openpyxl.load_workbook(file, data_only=True)
+                sheet = wb.active
+                imported_count = 0
+                skipped_count = 0
+
+                # Читаем файл со второй строки (пропуская шапку)
+                for i, row in enumerate(sheet.iter_rows(values_only=True)):
+                    if i == 0:
+                        continue # Пропуск заголовков
+                    
+                    if not row[0]:
+                        continue # Если ФИО пустое, пропускаем строку
+
+                    full_name = str(row[0]).strip()
+                    bib_number = str(row[1]).strip() if len(row) > 1 and row[1] is not None else None
+                    weight_kg = None
+
+                    # Безопасный парсинг веса (заменяем запятые на точки)
+                    if len(row) > 2 and row[2] is not None:
+                        try:
+                            weight_kg = float(str(row[2]).replace(',', '.'))
+                        except ValueError:
+                            pass 
+
+                    # Проверка на дубликат: если номер (бейдж) уже есть в этом турнире - пропускаем
+                    if bib_number and Participant.objects.filter(competition=competition, bib_number=bib_number).exists():
+                        skipped_count += 1
+                        continue
+
+                    # Создаем спортсмена
+                    Participant.objects.create(
+                        competition=competition,
+                        full_name=full_name,
+                        bib_number=bib_number,
+                        weight_kg=weight_kg
+                    )
+                    imported_count += 1
+
+                if imported_count > 0:
+                    AuditLog.objects.create(
+                        user=request.user, competition=competition, action="Массовый импорт",
+                        details=f"Организатор загрузил {imported_count} участников из файла {file.name}."
+                    )
+                    msg = f"Успешно импортировано участников: {imported_count}."
+                    if skipped_count > 0:
+                        msg += f" Пропущено дубликатов: {skipped_count}."
+                    messages.success(request, msg)
+                else:
+                    messages.warning(request, "Новых участников не найдено (файл пуст или все номера уже заняты).")
+
+            except Exception as e:
+                messages.error(request, f"Ошибка при чтении файла: Убедитесь, что это корректный .xlsx документ. Детали: {e}")
+
             return redirect('manage_participants', comp_id=competition.id)
+
+        # --- 3. СТАНДАРТНОЕ ДОБАВЛЕНИЕ ОДНОГО УЧАСТНИКА ---
+        else:
+            form = ParticipantForm(request.POST)
+            if form.is_valid():
+                participant = form.save(commit=False)
+                participant.competition = competition
+                participant.save()
+                AuditLog.objects.create(
+                    user=request.user, competition=competition, action="Добавление участника",
+                    details=f"Зарегистрирован: {participant.full_name} (Бейдж: {participant.bib_number})."
+                )
+                return redirect('manage_participants', comp_id=competition.id)
+
     else:
         form = ParticipantForm()
+        
     participants = competition.participants.all().order_by('bib_number')
     return render(request, 'competitions/manage_participants.html', {'competition': competition, 'form': form, 'participants': participants})
 
